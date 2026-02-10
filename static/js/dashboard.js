@@ -1,5 +1,7 @@
 // Dashboard JavaScript
 
+const CURRENCY = 'AED ';
+
 let expenses = [];
 let categories = [];
 let categoryChart = null;
@@ -29,20 +31,49 @@ async function initializeApp() {
 }
 
 function setupEventListeners() {
-    // Navigation
+    // Navigation (sidebar)
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
-            const view = item.dataset.view;
-            switchView(view);
+            switchView(item.dataset.view);
         });
     });
 
-    // Theme toggle
-    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    // Mobile navigation
+    const menuToggle = document.getElementById('menu-toggle');
+    const menuClose = document.getElementById('menu-close');
+    const mobileNavOverlay = document.getElementById('mobile-nav-overlay');
+    const mobileNav = document.getElementById('mobile-nav');
 
-    // Logout
-    document.getElementById('logout-btn').addEventListener('click', logout);
+    if (menuToggle) {
+        menuToggle.addEventListener('click', openMobileNav);
+    }
+    if (menuClose) {
+        menuClose.addEventListener('click', closeMobileNav);
+    }
+    if (mobileNavOverlay) {
+        mobileNavOverlay.addEventListener('click', closeMobileNav);
+    }
+
+    document.querySelectorAll('.mobile-nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchView(item.dataset.view);
+            closeMobileNav();
+        });
+    });
+
+    // Theme toggle (sidebar + mobile)
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeToggleMobile = document.getElementById('theme-toggle-mobile');
+    if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
+    if (themeToggleMobile) themeToggleMobile.addEventListener('click', toggleTheme);
+
+    // Logout (sidebar + mobile)
+    const logoutBtn = document.getElementById('logout-btn');
+    const logoutBtnMobile = document.getElementById('logout-btn-mobile');
+    if (logoutBtn) logoutBtn.addEventListener('click', logout);
+    if (logoutBtnMobile) logoutBtnMobile.addEventListener('click', logout);
 
     // Add expense form
     document.getElementById('expense-form').addEventListener('submit', addExpense);
@@ -98,20 +129,38 @@ function setupEventListeners() {
     });
 }
 
+function openMobileNav() {
+    const overlay = document.getElementById('mobile-nav-overlay');
+    const nav = document.getElementById('mobile-nav');
+    if (overlay) overlay.classList.add('is-open');
+    if (nav) nav.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeMobileNav() {
+    const overlay = document.getElementById('mobile-nav-overlay');
+    const nav = document.getElementById('mobile-nav');
+    if (overlay) overlay.classList.remove('is-open');
+    if (nav) nav.classList.remove('is-open');
+    document.body.style.overflow = '';
+}
+
 function switchView(viewName) {
-    // Update navigation
+    // Update sidebar nav
     document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-        if (item.dataset.view === viewName) {
-            item.classList.add('active');
-        }
+        item.classList.toggle('active', item.dataset.view === viewName);
+    });
+    // Update mobile nav
+    document.querySelectorAll('.mobile-nav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.view === viewName);
     });
 
     // Update views
     document.querySelectorAll('.view').forEach(view => {
         view.classList.remove('active');
     });
-    document.getElementById(`${viewName}-view`).classList.add('active');
+    const viewEl = document.getElementById(`${viewName}-view`);
+    if (viewEl) viewEl.classList.add('active');
 }
 
 function toggleTheme() {
@@ -125,7 +174,9 @@ function toggleTheme() {
 
 function updateThemeIcon(theme) {
     const icon = document.querySelector('.theme-icon');
-    icon.textContent = theme === 'light' ? '🌙' : '☀️';
+    if (icon) icon.textContent = theme === 'light' ? '🌙' : '☀️';
+    const mobileBtn = document.getElementById('theme-toggle-mobile');
+    if (mobileBtn) mobileBtn.textContent = theme === 'light' ? '🌙 Theme' : '☀️ Theme';
 }
 
 async function logout() {
@@ -215,7 +266,7 @@ function displayExpenses() {
             <td><span class="category-badge">${getCategoryIcon(expense.category)} ${escapeHtml(expense.category)}</span></td>
             <td>${escapeHtml(expense.description) || '-'}</td>
             <td>${escapeHtml(expense.vendor) || '-'}</td>
-            <td class="amount">$${parseFloat(expense.amount).toFixed(2)}</td>
+            <td class="amount">${CURRENCY}${parseFloat(expense.amount).toFixed(2)}</td>
             <td class="actions">
                 <button class="btn btn-sm btn-secondary" onclick="openEditModal(${expense.id})">Edit</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteExpense(${expense.id})">Delete</button>
@@ -415,6 +466,9 @@ async function processReceipt(file) {
             if (data.parsed.predicted_category) {
                 document.getElementById('ocr-category').value = data.parsed.predicted_category;
             }
+            if (data.parsed.description) {
+                document.getElementById('ocr-description').value = data.parsed.description;
+            }
 
             document.getElementById('ocr-raw-text').value = data.raw_text;
         } else {
@@ -482,9 +536,9 @@ async function loadAnalytics() {
         const data = await response.json();
 
         // Update stats
-        document.getElementById('total-spent').textContent = `$${(data.stats.total || 0).toFixed(2)}`;
+        document.getElementById('total-spent').textContent = `${CURRENCY}${(data.stats.total || 0).toFixed(2)}`;
         document.getElementById('total-count').textContent = data.stats.count || 0;
-        document.getElementById('average-expense').textContent = `$${(data.stats.average || 0).toFixed(2)}`;
+        document.getElementById('average-expense').textContent = `${CURRENCY}${(data.stats.average || 0).toFixed(2)}`;
 
         // Update charts
         updateCategoryChart(data.by_category);
@@ -565,7 +619,7 @@ function updateMonthChart(data) {
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        callback: (value) => '$' + value.toFixed(0),
+                        callback: (value) => CURRENCY + value.toFixed(0),
                         color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')
                     },
                     grid: {

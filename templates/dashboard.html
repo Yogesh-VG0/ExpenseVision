@@ -8,6 +8,31 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+    <!-- Mobile header (visible when sidebar is hidden) -->
+    <header class="mobile-header" aria-hidden="true">
+        <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Open menu">
+            <span class="menu-icon" aria-hidden="true">☰</span>
+        </button>
+        <h1 class="mobile-header-title">💰 ExpenseVision</h1>
+    </header>
+
+    <!-- Mobile nav overlay -->
+    <div class="mobile-nav-overlay" id="mobile-nav-overlay" aria-hidden="true"></div>
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Main navigation">
+        <div class="mobile-nav-header">
+            <span class="mobile-nav-title">💰 ExpenseVision</span>
+            <button type="button" class="menu-close" id="menu-close" aria-label="Close menu">&times;</button>
+        </div>
+        <a href="#" class="mobile-nav-item active" data-view="overview">📊 Overview</a>
+        <a href="#" class="mobile-nav-item" data-view="expenses">💸 Expenses</a>
+        <a href="#" class="mobile-nav-item" data-view="add-expense">➕ Add Expense</a>
+        <a href="#" class="mobile-nav-item" data-view="scan-receipt">📸 Scan Receipt</a>
+        <div class="mobile-nav-footer">
+            <button type="button" id="theme-toggle-mobile" class="btn btn-secondary btn-block">🌙 Theme</button>
+            <button type="button" id="logout-btn-mobile" class="btn btn-secondary btn-block">Logout</button>
+        </div>
+    </nav>
+
     <div class="dashboard">
         <!-- Sidebar -->
         <aside class="sidebar">

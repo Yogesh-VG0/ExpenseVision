@@ -147,7 +147,8 @@ def parse_receipt_text(text):
         'amount': None,
         'vendor': None,
         'date': None,
-        'items': []
+        'items': [],
+        'description': None
     }
 
     lines = text.split('\n')
@@ -194,6 +195,17 @@ def parse_receipt_text(text):
         if line and len(line) > 2 and not re.search(r'\d{3,}', line):
             result['vendor'] = line
             break
+
+    # Description: first few meaningful lines (skip mostly digits)
+    desc_lines = []
+    for line in lines[:12]:
+        line = line.strip()
+        if line and len(line) > 1 and not re.match(r'^[\d\s\.\,\$]+$', line):
+            desc_lines.append(line)
+            if len(desc_lines) >= 5:
+                break
+    if desc_lines:
+        result['description'] = ' '.join(desc_lines)[:500]  # cap length
 
     return result
 
@@ -281,9 +293,10 @@ def parse_receipt_veryfi(filepath, filename):
 
     line_items = data.get('line_items') or []
     items = []
+    item_descriptions = []
     for li in line_items:
         if isinstance(li, dict):
-            desc = li.get('description') or li.get('text') or ''
+            desc = (li.get('description') or li.get('text') or '').strip()
             total = li.get('total') or li.get('price')
             if total is not None:
                 try:
@@ -291,13 +304,23 @@ def parse_receipt_veryfi(filepath, filename):
                 except (TypeError, ValueError):
                     total = None
             items.append({'description': desc, 'total': total})
+            if desc:
+                item_descriptions.append(desc)
         else:
             items.append({'description': str(li), 'total': None})
+
+    # Build description from line items for the expense form
+    description_val = None
+    if item_descriptions:
+        description_val = ', '.join(item_descriptions[:15])  # first 15 items
+        if len(item_descriptions) > 15:
+            description_val += f' (+{len(item_descriptions) - 15} more)'
 
     return {
         'amount': total_val,
         'vendor': vendor_val or None,
         'date': date_val,
+        'description': description_val,
         'items': items,
         'raw_text': data.get('ocr_text') or '',
         'predicted_category': default_category,
