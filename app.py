@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import base64
 from datetime import datetime
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -15,8 +16,10 @@ import csv
 from collections import defaultdict
 import pickle
 import numpy as np
+import requests
 
-# Configure Tesseract path for Windows
+# Configure Tesseract path for Windows; optional for cloud deployment
+OCR_AVAILABLE = True
 if os.name == 'nt':  # Windows
     possible_paths = [
         r'C:\Program Files\Tesseract-OCR\tesseract.exe',
@@ -26,11 +29,15 @@ if os.name == 'nt':  # Windows
         if os.path.exists(path):
             pytesseract.pytesseract.tesseract_cmd = path
             break
+try:
+    pytesseract.get_tesseract_version()
+except Exception:
+    OCR_AVAILABLE = False
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
 app.config['SESSION_TYPE'] = 'filesystem'
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 Session(app)
 
@@ -190,6 +197,113 @@ def parse_receipt_text(text):
 
     return result
 
+
+# Veryfi API (optional): receipt OCR in production without Tesseract
+VERYFI_CLIENT_ID = os.environ.get('VERYFI_CLIENT_ID', '').strip()
+VERYFI_USERNAME = os.environ.get('VERYFI_USERNAME', '').strip()
+VERYFI_API_KEY = os.environ.get('VERYFI_API_KEY', '').strip()
+VERYFI_AVAILABLE = bool(VERYFI_CLIENT_ID and VERYFI_USERNAME and VERYFI_API_KEY)
+
+VERYFI_API_URL = 'https://api.veryfi.com/api/v8/partner/documents'
+
+
+def _get_nested_value(obj, *keys):
+    """Get value from nested dict; handle objects like { 'value': 123 }."""
+    for key in keys:
+        if obj is None:
+            return None
+        obj = obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+    if isinstance(obj, dict) and 'value' in obj:
+        return obj.get('value')
+    return obj
+
+
+def parse_receipt_veryfi(filepath, filename):
+    """
+    Send image to Veryfi API and return parsed data in our app's format.
+    Returns dict: amount, vendor, date, items, raw_text, predicted_category (if any).
+    """
+    with open(filepath, 'rb') as f:
+        file_b64 = base64.b64encode(f.read()).decode('utf-8')
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'CLIENT-ID': VERYFI_CLIENT_ID,
+        'AUTHORIZATION': f'apikey {VERYFI_USERNAME}:{VERYFI_API_KEY}',
+    }
+    payload = {
+        'file_data': file_b64,
+        'file_name': filename or 'receipt.jpg',
+        'document_type': 'receipt',
+    }
+
+    resp = requests.post(VERYFI_API_URL, headers=headers, json=payload, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+
+    meta = data.get('meta') or {}
+    # Veryfi returns total/date/vendor as objects with .value or direct values
+    total_val = _get_nested_value(meta, 'total') or _get_nested_value(data, 'total')
+    if total_val is not None:
+        try:
+            total_val = float(total_val)
+        except (TypeError, ValueError):
+            total_val = None
+
+    date_val = _get_nested_value(meta, 'date') or data.get('date')
+    if date_val and isinstance(date_val, str) and 'T' in date_val:
+        date_val = date_val.split('T')[0]  # YYYY-MM-DD for our frontend
+
+    vendor_obj = meta.get('vendor') or data.get('vendor')
+    if isinstance(vendor_obj, dict):
+        vendor_val = vendor_obj.get('name') or vendor_obj.get('raw_name')
+    else:
+        vendor_val = vendor_obj
+
+    default_category = _get_nested_value(meta, 'default_category') or meta.get('default_category') or data.get('category')
+    # Map Veryfi categories to our app categories when possible
+    veryfi_to_app_category = {
+        'food and groceries': 'Groceries',
+        'meals & entertainment': 'Food & Dining',
+        'food and grocers': 'Groceries',
+        'travel': 'Travel',
+        'transportation': 'Transportation',
+        'automotive': 'Transportation',
+        'office supplies & software': 'Shopping',
+        'utilities': 'Bills & Utilities',
+        'healthcare': 'Healthcare',
+        'training & education': 'Education',
+    }
+    if default_category and isinstance(default_category, str):
+        key = default_category.lower().strip()
+        default_category = veryfi_to_app_category.get(key, default_category)
+
+    line_items = data.get('line_items') or []
+    items = []
+    for li in line_items:
+        if isinstance(li, dict):
+            desc = li.get('description') or li.get('text') or ''
+            total = li.get('total') or li.get('price')
+            if total is not None:
+                try:
+                    total = float(total)
+                except (TypeError, ValueError):
+                    total = None
+            items.append({'description': desc, 'total': total})
+        else:
+            items.append({'description': str(li), 'total': None})
+
+    return {
+        'amount': total_val,
+        'vendor': vendor_val or None,
+        'date': date_val,
+        'items': items,
+        'raw_text': data.get('ocr_text') or '',
+        'predicted_category': default_category,
+    }
+
+
 # ML Helper Functions
 
 
@@ -210,7 +324,7 @@ class SimpleExpenseClassifier:
                     data = pickle.load(f)
                     self.keywords = data.get('keywords', defaultdict(list))
                     self.categories = data.get('categories', [])
-            except:
+            except Exception:
                 self.initialize_default_keywords()
         else:
             self.initialize_default_keywords()
@@ -543,48 +657,50 @@ def get_analytics():
 @app.route('/api/ocr', methods=['POST'])
 @login_required
 def ocr_receipt():
-    """Process receipt image with OCR"""
+    """Process receipt image with OCR (Veryfi API or Tesseract)."""
+    if not VERYFI_AVAILABLE and not OCR_AVAILABLE:
+        return jsonify({
+            'error': 'Receipt scanning is not available. Set VERYFI_* env vars or install Tesseract.'
+        }), 503
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
 
     file = request.files['file']
-
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
 
-        try:
-            # Extract text from image
+    try:
+        if VERYFI_AVAILABLE:
+            parsed = parse_receipt_veryfi(filepath, filename)
+            raw_text = parsed.pop('raw_text', '')
+            predicted = parsed.get('predicted_category')
+            if not predicted and parsed.get('vendor'):
+                predicted = classifier.predict_category(parsed.get('vendor', ''), parsed.get('vendor', ''))
+            parsed['predicted_category'] = predicted
+            parsed.setdefault('items', [])
+        else:
             text = extract_text_from_image(filepath)
-
-            # Parse receipt
             parsed = parse_receipt_text(text)
+            if parsed.get('vendor'):
+                parsed['predicted_category'] = classifier.predict_category(parsed['vendor'], parsed['vendor'])
+            raw_text = text
 
-            # Predict category if vendor is found
-            if parsed['vendor']:
-                predicted_category = classifier.predict_category(
-                    parsed['vendor'],
-                    parsed['vendor']
-                )
-                parsed['predicted_category'] = predicted_category
-
-            # Clean up uploaded file
+        os.remove(filepath)
+        return jsonify({'success': True, 'raw_text': raw_text, 'parsed': parsed})
+    except requests.RequestException as e:
+        if os.path.exists(filepath):
             os.remove(filepath)
-
-            return jsonify({
-                'success': True,
-                'raw_text': text,
-                'parsed': parsed
-            })
-        except Exception as e:
-            # Clean up on error
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            return jsonify({'error': f'OCR processing failed: {str(e)}'}), 500
+        err = e.response.text if getattr(e, 'response', None) else str(e)
+        return jsonify({'error': f'Receipt API error: {err}'}), 502
+    except Exception as e:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        return jsonify({'error': f'OCR processing failed: {str(e)}'}), 500
 
 
 @app.route('/api/predict-category', methods=['POST'])
@@ -643,4 +759,6 @@ def export_csv():
 
 if __name__ == '__main__':
     init_db()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=debug, host='0.0.0.0', port=port)

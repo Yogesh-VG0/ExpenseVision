@@ -202,12 +202,19 @@ function displayExpenses() {
         return;
     }
 
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     tbody.innerHTML = expenses.map(expense => `
         <tr>
             <td>${formatDate(expense.date)}</td>
-            <td><span class="category-badge">${getCategoryIcon(expense.category)} ${expense.category}</span></td>
-            <td>${expense.description || '-'}</td>
-            <td>${expense.vendor || '-'}</td>
+            <td><span class="category-badge">${getCategoryIcon(expense.category)} ${escapeHtml(expense.category)}</span></td>
+            <td>${escapeHtml(expense.description) || '-'}</td>
+            <td>${escapeHtml(expense.vendor) || '-'}</td>
             <td class="amount">$${parseFloat(expense.amount).toFixed(2)}</td>
             <td class="actions">
                 <button class="btn btn-sm btn-secondary" onclick="openEditModal(${expense.id})">Edit</button>
