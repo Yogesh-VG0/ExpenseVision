@@ -393,6 +393,12 @@ def index():
     return render_template('login.html')
 
 
+@app.route('/favicon.ico')
+def favicon():
+    """Avoid 404 when browser requests favicon."""
+    return '', 204
+
+
 @app.route('/register', methods=['POST'])
 def register():
     """Register new user"""
