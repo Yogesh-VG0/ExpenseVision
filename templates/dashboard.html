@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExpenseVision - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>💰 ExpenseVision</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="overview">
+                    <span>📊</span> Overview
+                </a>
+                <a href="#" class="nav-item" data-view="expenses">
+                    <span>💸</span> Expenses
+                </a>
+                <a href="#" class="nav-item" data-view="add-expense">
+                    <span>➕</span> Add Expense
+                </a>
+                <a href="#" class="nav-item" data-view="scan-receipt">
+                    <span>📸</span> Scan Receipt
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="theme-toggle">
+                    <button id="theme-toggle" class="btn-icon" title="Toggle theme">
+                        <span class="theme-icon">🌙</span>
+                    </button>
+                </div>
+                <button id="logout-btn" class="btn btn-secondary">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Overview View -->
+            <div id="overview-view" class="view active">
+                <div class="view-header">
+                    <h1>Dashboard Overview</h1>
+                    <div class="header-actions">
+                        <button id="export-csv-btn" class="btn btn-secondary">📥 Export CSV</button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-info">
+                            <h3>Total Spent</h3>
+                            <p class="stat-value" id="total-spent">$0.00</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📝</div>
+                        <div class="stat-info">
+                            <h3>Total Expenses</h3>
+                            <p class="stat-value" id="total-count">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-info">
+                            <h3>Average</h3>
+                            <p class="stat-value" id="average-expense">$0.00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Spending by Category</h3>
+                        <canvas id="category-chart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Monthly Spending Trend</h3>
+                        <canvas id="month-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expenses View -->
+            <div id="expenses-view" class="view">
+                <div class="view-header">
+                    <h1>All Expenses</h1>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters">
+                    <input type="text" id="search-input" placeholder="Search expenses...">
+                    <select id="category-filter">
+                        <option value="">All Categories</option>
+                    </select>
+                    <input type="date" id="start-date-filter">
+                    <input type="date" id="end-date-filter">
+                    <button id="clear-filters-btn" class="btn btn-secondary">Clear</button>
+                </div>
+
+                <!-- Expenses Table -->
+                <div class="table-container">
+                    <table class="expenses-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Vendor</th>
+                                <th>Amount</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenses-tbody">
+                            <tr>
+                                <td colspan="6" class="empty-state">No expenses found. Add your first expense!</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Add Expense View -->
+            <div id="add-expense-view" class="view">
+                <div class="view-header">
+                    <h1>Add New Expense</h1>
+                </div>
+
+                <div class="form-container">
+                    <form id="expense-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="expense-amount">Amount *</label>
+                                <input type="number" id="expense-amount" step="0.01" min="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="expense-date">Date *</label>
+                                <input type="date" id="expense-date" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="expense-category">Category *</label>
+                            <select id="expense-category" required>
+                                <option value="">Select a category</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="expense-vendor">Vendor/Store</label>
+                            <input type="text" id="expense-vendor" placeholder="e.g., Starbucks, Amazon">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="expense-description">Description</label>
+                            <textarea id="expense-description" rows="3" placeholder="Additional details..."></textarea>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" id="predict-category-btn" class="btn btn-secondary">🤖 Auto-Categorize</button>
+                            <button type="submit" class="btn btn-primary">Add Expense</button>
+                        </div>
+
+                        <div class="success-message" id="expense-success"></div>
+                        <div class="error-message" id="expense-error"></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Scan Receipt View -->
+            <div id="scan-receipt-view" class="view">
+                <div class="view-header">
+                    <h1>Scan Receipt</h1>
+                    <p>Upload a receipt image to automatically extract expense details</p>
+                </div>
+
+                <div class="form-container">
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">📸</div>
+                        <h3>Drop receipt image here or click to upload</h3>
+                        <p>Supports JPG, PNG, GIF (max 16MB)</p>
+                        <input type="file" id="receipt-file" accept="image/*" hidden>
+                        <button type="button" id="select-file-btn" class="btn btn-primary">Select File</button>
+                    </div>
+
+                    <div id="ocr-result" class="ocr-result" style="display: none;">
+                        <h3>Extracted Information</h3>
+                        <form id="ocr-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="ocr-amount">Amount *</label>
+                                    <input type="number" id="ocr-amount" step="0.01" min="0.01" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ocr-date">Date *</label>
+                                    <input type="date" id="ocr-date" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ocr-category">Category *</label>
+                                <select id="ocr-category" required>
+                                    <option value="">Select a category</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ocr-vendor">Vendor/Store</label>
+                                <input type="text" id="ocr-vendor">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ocr-description">Description</label>
+                                <textarea id="ocr-description" rows="3"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Raw OCR Text</label>
+                                <textarea id="ocr-raw-text" rows="5" readonly></textarea>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" id="scan-another-btn" class="btn btn-secondary">Scan Another</button>
+                                <button type="submit" class="btn btn-primary">Save Expense</button>
+                            </div>
+
+                            <div class="success-message" id="ocr-success"></div>
+                            <div class="error-message" id="ocr-error"></div>
+                        </form>
+                    </div>
+
+                    <div id="ocr-loading" class="loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Processing receipt...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Edit Expense Modal -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Expense</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="edit-expense-form">
+                <input type="hidden" id="edit-expense-id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-amount">Amount *</label>
+                        <input type="number" id="edit-amount" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-date">Date *</label>
+                        <input type="date" id="edit-date" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-category">Category *</label>
+                    <select id="edit-category" required></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-vendor">Vendor/Store</label>
+                    <input type="text" id="edit-vendor">
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-description">Description</label>
+                    <textarea id="edit-description" rows="3"></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+
+                <div class="error-message" id="edit-error"></div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
+
