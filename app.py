@@ -663,6 +663,17 @@ def get_analytics():
     ''', (user_id,))
     by_month = [dict(row) for row in cursor.fetchall()]
 
+    # Total by day (last 30 days)
+    cursor.execute('''
+        SELECT date as day, SUM(amount) as total
+        FROM expenses
+        WHERE user_id = ?
+        GROUP BY day
+        ORDER BY day DESC
+        LIMIT 30
+    ''', (user_id,))
+    by_day = [dict(row) for row in cursor.fetchall()]
+
     # Overall stats
     cursor.execute('''
         SELECT
@@ -679,6 +690,7 @@ def get_analytics():
     return jsonify({
         'by_category': by_category,
         'by_month': by_month,
+        'by_day': by_day,
         'stats': stats
     })
 

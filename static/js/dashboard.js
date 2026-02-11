@@ -6,6 +6,7 @@ let expenses = [];
 let categories = [];
 let categoryChart = null;
 let monthChart = null;
+let dayChart = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
@@ -543,6 +544,7 @@ async function loadAnalytics() {
         // Update charts
         updateCategoryChart(data.by_category);
         updateMonthChart(data.by_month);
+        updateDayChart(data.by_day || []);
     } catch (error) {
         console.error('Error loading analytics:', error);
     }
@@ -638,6 +640,64 @@ function updateMonthChart(data) {
         }
     });
 }
+
+function updateDayChart(data) {
+    const ctx = document.getElementById('day-chart');
+
+    if (!ctx) return;
+
+    if (dayChart) {
+        dayChart.destroy();
+    }
+
+    // Reverse to show oldest to newest
+    const reversedData = [...data].reverse();
+
+    dayChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: reversedData.map(d => formatDate(d.day)),
+            datasets: [{
+                label: 'Total Spent',
+                data: reversedData.map(d => d.total),
+                borderColor: '#06b6d4',
+                backgroundColor: 'rgba(6, 182, 212, 0.2)',
+                tension: 0.25,
+                fill: true,
+                pointRadius: 3,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: (value) => CURRENCY + value.toFixed(0),
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')
+                    },
+                    grid: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
 
 // Export
 async function exportCSV() {
