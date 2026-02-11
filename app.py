@@ -17,6 +17,7 @@ USE_POSTGRES = bool(DATABASE_URL)
 
 # Render: use /tmp for writable paths (ephemeral but reliable)
 ON_RENDER = os.environ.get('RENDER', '').lower() == 'true'
+DEBUG_ERRORS = os.environ.get('EXPENSEVISION_DEBUG', '').lower() == 'true'
 if USE_POSTGRES:
     import psycopg2
     from psycopg2 import IntegrityError as PgIntegrityError
@@ -54,7 +55,8 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-in-pr
 app.config['SESSION_TYPE'] = 'filesystem'
 _base = '/tmp' if ON_RENDER else '.'
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', os.path.join(_base, 'uploads'))
-app.config['SESSION_FILE_DIR'] = os.path.join(_base, 'flask_session') if ON_RENDER else None
+_session_dir = os.path.join(_base, 'flask_session') if ON_RENDER else None
+app.config['SESSION_FILE_DIR'] = _session_dir
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 Session(app)
 
@@ -62,9 +64,11 @@ Session(app)
 DATABASE = os.path.join(_base, 'expensevision.db') if (ON_RENDER and not USE_POSTGRES) else 'expensevision.db'
 MODELS_DIR = os.path.join(_base, 'models') if ON_RENDER else 'models'
 
-# Create uploads and models directories (move after MODELS_DIR)
+# Create uploads, models, and session directories
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
+if _session_dir:
+    os.makedirs(_session_dir, exist_ok=True)
 
 
 def _pg_connect():
@@ -505,7 +509,10 @@ def index():
 def handle_500(err):
     """Return JSON for API/auth routes so frontend gets parseable response."""
     if request.path.startswith(('/api', '/register', '/login', '/logout')):
-        return jsonify({'error': 'Server error. Please try again.'}), 500
+        err_msg = 'Server error. Please try again.'
+        if DEBUG_ERRORS:
+            err_msg = str(err)
+        return jsonify({'error': err_msg}), 500
     from flask import render_template_string
     return render_template_string('<h1>Internal Server Error</h1>'), 500
 
@@ -563,7 +570,10 @@ def register():
             db.close()
     except Exception as e:
         app.logger.exception('Registration failed')
-        return jsonify({'error': 'Registration failed. Please try again or contact support.'}), 500
+        err_msg = 'Registration failed. Please try again or contact support.'
+        if DEBUG_ERRORS:
+            err_msg = str(e)
+        return jsonify({'error': err_msg}), 500
 
 
 @app.route('/login', methods=['POST'])
@@ -952,8 +962,11 @@ def export_csv():
     )
 
 
+# Ensure tables exist when app is loaded (gunicorn does not run if __name__ block)
+init_db()
+
+
 if __name__ == '__main__':
-    init_db()
     debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=debug, host='0.0.0.0', port=port)
