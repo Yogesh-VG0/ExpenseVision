@@ -683,11 +683,14 @@ body {
     background: rgba(0, 0, 0, 0.5);
     z-index: 200;
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.2s ease;
 }
 
 .mobile-nav-overlay.is-open {
+    display: flex;
     opacity: 1;
+    pointer-events: auto;
 }
 
 .mobile-nav {
@@ -709,6 +712,7 @@ body {
 }
 
 .mobile-nav.is-open {
+    display: flex;
     transform: translateX(0);
 }
 
@@ -790,11 +794,6 @@ body {
     }
 
     .mobile-header {
-        display: flex;
-    }
-
-    .mobile-nav-overlay,
-    .mobile-nav {
         display: flex;
     }
 

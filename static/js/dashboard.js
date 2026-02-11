@@ -698,6 +698,7 @@ function updateDayChart(data) {
             }
         }
     });
+}
 
 // Export
 async function exportCSV() {
