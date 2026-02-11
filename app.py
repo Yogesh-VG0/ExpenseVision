@@ -11,8 +11,12 @@ from flask_session import Session
 import sqlite3
 
 # Supabase/Postgres support: use DATABASE_URL when set (e.g. Supabase Session Pooler)
-DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
+# Render may inject DATABASE_URL for internal Postgres - use EXTERNAL_DATABASE_URL for Supabase if needed
+DATABASE_URL = os.environ.get('DATABASE_URL', '').strip() or os.environ.get('EXTERNAL_DATABASE_URL', '').strip()
 USE_POSTGRES = bool(DATABASE_URL)
+
+# Render: use /tmp for writable paths (ephemeral but reliable)
+ON_RENDER = os.environ.get('RENDER', '').lower() == 'true'
 if USE_POSTGRES:
     import psycopg2
     from psycopg2 import IntegrityError as PgIntegrityError
@@ -48,21 +52,28 @@ except Exception:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
 app.config['SESSION_TYPE'] = 'filesystem'
-app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'uploads')
+_base = '/tmp' if ON_RENDER else '.'
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', os.path.join(_base, 'uploads'))
+app.config['SESSION_FILE_DIR'] = os.path.join(_base, 'flask_session') if ON_RENDER else None
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 Session(app)
 
-# Create uploads directory if it doesn't exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs('models', exist_ok=True)
-
 # Database setup
-DATABASE = 'expensevision.db'
+DATABASE = os.path.join(_base, 'expensevision.db') if (ON_RENDER and not USE_POSTGRES) else 'expensevision.db'
+MODELS_DIR = os.path.join(_base, 'models') if ON_RENDER else 'models'
+
+# Create uploads and models directories (move after MODELS_DIR)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
 
 
 def _pg_connect():
     """Connect to Postgres (Supabase). Use Session Pooler URI (port 6543) for Render."""
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    url = DATABASE_URL
+    # Supabase requires SSL; add sslmode if not in URL
+    if 'supabase' in url.lower() and 'sslmode=' not in url:
+        url = url + ('&' if '?' in url else '?') + 'sslmode=require'
+    return psycopg2.connect(url, cursor_factory=RealDictCursor)
 
 
 def get_db():
@@ -414,7 +425,7 @@ class SimpleExpenseClassifier:
 
     def load_model(self):
         """Load or initialize the model"""
-        model_path = 'models/expense_classifier.pkl'
+        model_path = os.path.join(MODELS_DIR, 'expense_classifier.pkl')
         if os.path.exists(model_path):
             try:
                 with open(model_path, 'rb') as f:
@@ -443,7 +454,7 @@ class SimpleExpenseClassifier:
 
     def save_model(self):
         """Save the model to disk"""
-        model_path = 'models/expense_classifier.pkl'
+        model_path = os.path.join(MODELS_DIR, 'expense_classifier.pkl')
         try:
             with open(model_path, 'wb') as f:
                 pickle.dump({
@@ -490,16 +501,37 @@ def index():
     return render_template('login.html')
 
 
+@app.errorhandler(500)
+def handle_500(err):
+    """Return JSON for API/auth routes so frontend gets parseable response."""
+    if request.path.startswith(('/api', '/register', '/login', '/logout')):
+        return jsonify({'error': 'Server error. Please try again.'}), 500
+    from flask import render_template_string
+    return render_template_string('<h1>Internal Server Error</h1>'), 500
+
+
 @app.route('/favicon.ico')
 def favicon():
     """Avoid 404 when browser requests favicon."""
     return '', 204
 
 
+@app.route('/healthz')
+def healthz():
+    """Health check for Render. Verifies DB connectivity."""
+    try:
+        db = get_db()
+        db.cursor().execute('SELECT 1')
+        db.close()
+        return '', 200
+    except Exception:
+        return '', 503
+
+
 @app.route('/register', methods=['POST'])
 def register():
     """Register new user"""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
 
@@ -509,26 +541,29 @@ def register():
     if len(password) < 6:
         return jsonify({'error': 'Password must be at least 6 characters'}), 400
 
-    db = get_db()
-    cursor = db.cursor()
-
     try:
-        password_hash = generate_password_hash(password)
-        sql, _ = _sql('INSERT INTO users (username, password_hash) VALUES (?, ?)')
-        if USE_POSTGRES:
-            cursor.execute(sql + ' RETURNING id', (username, password_hash))
-            user_id = cursor.fetchone()['id']
-        else:
-            cursor.execute(sql, (username, password_hash))
-            user_id = cursor.lastrowid
-        db.commit()
-        session['user_id'] = user_id
-        session['username'] = username
-        return jsonify({'success': True, 'username': username})
-    except DBIntegrityError:
-        return jsonify({'error': 'Username already exists'}), 400
-    finally:
-        db.close()
+        db = get_db()
+        cursor = db.cursor()
+        try:
+            password_hash = generate_password_hash(password)
+            sql, _ = _sql('INSERT INTO users (username, password_hash) VALUES (?, ?)')
+            if USE_POSTGRES:
+                cursor.execute(sql + ' RETURNING id', (username, password_hash))
+                user_id = cursor.fetchone()['id']
+            else:
+                cursor.execute(sql, (username, password_hash))
+                user_id = cursor.lastrowid
+            db.commit()
+            session['user_id'] = user_id
+            session['username'] = username
+            return jsonify({'success': True, 'username': username})
+        except DBIntegrityError:
+            return jsonify({'error': 'Username already exists'}), 400
+        finally:
+            db.close()
+    except Exception as e:
+        app.logger.exception('Registration failed')
+        return jsonify({'error': 'Registration failed. Please try again or contact support.'}), 500
 
 
 @app.route('/login', methods=['POST'])

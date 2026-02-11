@@ -48,7 +48,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ username, password })
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch {
+                data = { error: 'Server error. Please try again.' };
+            }
 
             if (response.ok) {
                 window.location.href = '/';
@@ -85,7 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ username, password })
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch {
+                data = { error: 'Server error. Please try again.' };
+            }
 
             if (response.ok) {
                 window.location.href = '/';
