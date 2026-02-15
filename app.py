@@ -2,6 +2,8 @@ import os
 import re
 import json
 import base64
+import threading
+import time
 from datetime import datetime
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -964,6 +966,34 @@ def export_csv():
 
 # Ensure tables exist when app is loaded (gunicorn does not run if __name__ block)
 init_db()
+
+
+# ---------------------------------------------------------------------------
+# Self-ping keep-alive: prevents Render free-tier from spinning down after
+# 15 minutes of inactivity.  A lightweight daemon thread pings /healthz
+# every 10 minutes.  Render automatically sets RENDER_EXTERNAL_URL.
+# ---------------------------------------------------------------------------
+def _keep_alive():
+    """Background thread that pings the service to prevent idle spin-down."""
+    service_url = os.environ.get('RENDER_EXTERNAL_URL', '').rstrip('/')
+    if not service_url:
+        print('[keep-alive] RENDER_EXTERNAL_URL not set — self-ping disabled.')
+        return
+    ping_url = f'{service_url}/healthz'
+    interval = int(os.environ.get('KEEP_ALIVE_INTERVAL', 600))  # default 10 min
+    print(f'[keep-alive] Pinging {ping_url} every {interval}s')
+    while True:
+        time.sleep(interval)
+        try:
+            resp = requests.get(ping_url, timeout=10)
+            print(f'[keep-alive] Ping {ping_url} -> {resp.status_code}')
+        except Exception as exc:
+            print(f'[keep-alive] Ping failed: {exc}')
+
+
+if ON_RENDER:
+    _keep_alive_thread = threading.Thread(target=_keep_alive, daemon=True)
+    _keep_alive_thread.start()
 
 
 if __name__ == '__main__':
