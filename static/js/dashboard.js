@@ -25,6 +25,7 @@ async function initializeApp() {
     await loadCategories();
     await loadExpenses();
     await loadAnalytics();
+    loadCachedAIInsights(); // show last AI insights if any (no await)
 
     // Set default date to today
     document.getElementById('expense-date').valueAsDate = new Date();
@@ -746,7 +747,75 @@ function updateDayChart(data) {
     });
 }
 
-// AI Insights
+// AI Insights — background job + polling (avoids Render free tier ~30s proxy timeout)
+function getAIErrorMessage(status) {
+    if (status === 502 || status === 504 || status === 0 || status == null) {
+        return 'Request timed out. Please try again.';
+    }
+    return 'Server error. Please try again.';
+}
+
+/** Load cached insights on dashboard load (from DB). */
+async function loadCachedAIInsights() {
+    const placeholder = document.getElementById('ai-insights-placeholder');
+    const content = document.getElementById('ai-insights-content');
+    if (!placeholder || !content) return;
+    try {
+        const res = await fetch('/api/ai-insights');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.status === 'ready' && data.insights) {
+            placeholder.style.display = 'none';
+            content.style.display = 'block';
+            content.textContent = data.insights;
+        } else if (data.status === 'generating') {
+            placeholder.style.display = 'none';
+            content.style.display = 'block';
+            content.textContent = 'AI is analyzing your spending… This may take 60–90 seconds. The page will update automatically.';
+            document.getElementById('ai-insights-btn').disabled = true;
+            pollAIInsights();
+        }
+    } catch (_) { /* ignore */ }
+}
+
+/** Poll for AI result (called after POST returns status "generating"). */
+let aiPollTimer = null;
+function pollAIInsights() {
+    const btn = document.getElementById('ai-insights-btn');
+    const loading = document.getElementById('ai-loading');
+    const content = document.getElementById('ai-insights-content');
+    const started = Date.now();
+    const maxWait = 120000; // 2 min
+
+    function stopPolling() {
+        if (aiPollTimer) clearInterval(aiPollTimer);
+        aiPollTimer = null;
+        loading.style.display = 'none';
+        if (btn) btn.disabled = false;
+    }
+
+    aiPollTimer = setInterval(async () => {
+        if (Date.now() - started > maxWait) {
+            stopPolling();
+            content.style.display = 'block';
+            content.textContent = 'Generation is taking longer than expected. You can try again in a moment.';
+            return;
+        }
+        try {
+            const res = await fetch('/api/ai-insights');
+            const data = await res.json();
+            if (data.status === 'ready') {
+                stopPolling();
+                content.style.display = 'block';
+                typeText(content, data.insights || '');
+            } else if (data.status === 'generating') {
+                content.style.display = 'block';
+                content.textContent = 'AI is analyzing your spending… (60–90 seconds). Updating automatically.';
+            }
+        } catch (_) { /* keep polling */ }
+    }, 4000);
+}
+
 async function loadAIInsights() {
     const btn = document.getElementById('ai-insights-btn');
     const placeholder = document.getElementById('ai-insights-placeholder');
@@ -773,23 +842,30 @@ async function loadAIInsights() {
             try {
                 data = JSON.parse(text);
             } catch {
-                data = { error: response.ok ? 'Invalid response.' : 'Server error or request timed out. The free AI model can take 30+ seconds — please try again.' };
+                data = { error: getAIErrorMessage(response.status) };
             }
         }
         loading.style.display = 'none';
 
+        if (response.ok && data.status === 'generating') {
+            content.style.display = 'block';
+            content.textContent = data.message || 'AI is analyzing your spending… The page will update automatically in 60–90 seconds.';
+            pollAIInsights();
+            return;
+        }
         if (response.ok && data.insights) {
             content.style.display = 'block';
             typeText(content, data.insights);
-        } else {
-            content.style.display = 'block';
-            content.textContent = data.error || 'Unable to generate insights. Please try again.';
+            btn.disabled = false;
+            return;
         }
+        content.style.display = 'block';
+        content.textContent = data.error || 'Unable to generate insights. Please try again.';
     } catch (error) {
         console.error('AI insights error:', error);
         loading.style.display = 'none';
         content.style.display = 'block';
-        content.textContent = 'An error occurred while generating insights. If the request took a long time, the server may have timed out — try again.';
+        content.textContent = getAIErrorMessage(502);
     } finally {
         btn.disabled = false;
     }

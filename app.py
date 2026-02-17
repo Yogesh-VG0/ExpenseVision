@@ -62,6 +62,16 @@ app.config['SESSION_FILE_DIR'] = _session_dir
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 Session(app)
 
+
+@app.after_request
+def add_static_cache(response):
+    """Cache static assets so 502s during restarts don't break the UI."""
+    if request.path.startswith('/static/'):
+        response.cache_control.public = True
+        response.cache_control.max_age = 3600
+    return response
+
+
 # Database setup
 DATABASE = os.path.join(_base, 'expensevision.db') if (ON_RENDER and not USE_POSTGRES) else 'expensevision.db'
 MODELS_DIR = os.path.join(_base, 'models') if ON_RENDER else 'models'
@@ -141,6 +151,14 @@ def init_db():
                 icon TEXT
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ai_insights (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id),
+                insights_text TEXT,
+                status TEXT NOT NULL DEFAULT 'none',
+                generated_at TIMESTAMP
+            )
+        ''')
         default_categories = [
             ('Food & Dining', '\U0001f37d'),
             ('Transportation', '\U0001f697'),
@@ -191,6 +209,15 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE NOT NULL,
                 icon TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ai_insights (
+                user_id INTEGER PRIMARY KEY,
+                insights_text TEXT,
+                status TEXT NOT NULL DEFAULT 'none',
+                generated_at TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
         default_categories = [
@@ -1036,53 +1063,47 @@ def predict_category():
     return jsonify({'category': predicted})
 
 
-@app.route('/api/ai-insights', methods=['POST'])
-@login_required
-def ai_insights():
-    """Generate AI-powered spending insights using DeepSeek R1 via OpenRouter."""
+def _run_ai_insights_job(user_id):
+    """Background job: fetch expenses, call OpenRouter, save result to ai_insights. Runs in a thread."""
+    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     try:
-        if not OPENROUTER_API_KEY:
-            return jsonify({'error': 'AI insights are not available. Set OPENROUTER_API_KEY environment variable.'}), 503
-
-        user_id = session['user_id']
         db = get_db()
         cursor = db.cursor()
-
-        # Fetch recent expenses (last 90 days, up to 200)
         sql, p = _sql('''
             SELECT category, amount, date, vendor, description
-            FROM expenses
-            WHERE user_id = ?
-            ORDER BY date DESC
-            LIMIT 200
+            FROM expenses WHERE user_id = ?
+            ORDER BY date DESC LIMIT 200
         ''', (user_id,))
         cursor.execute(sql, p)
         rows = [_row_to_dict(row) for row in cursor.fetchall()]
-
-        # Get aggregated stats
         sql2, p2 = _sql('''
             SELECT category, SUM(amount) as total, COUNT(*) as count
-            FROM expenses WHERE user_id = ?
-            GROUP BY category ORDER BY total DESC
+            FROM expenses WHERE user_id = ? GROUP BY category ORDER BY total DESC
         ''', (user_id,))
         cursor.execute(sql2, p2)
         by_category = [dict(row) for row in cursor.fetchall()]
-
-        sql3, p3 = _sql('''
-            SELECT SUM(amount) as total, COUNT(*) as count, AVG(amount) as average
-            FROM expenses WHERE user_id = ?
-        ''', (user_id,))
+        sql3, p3 = _sql('''SELECT SUM(amount) as total, COUNT(*) as count FROM expenses WHERE user_id = ?''', (user_id,))
         cursor.execute(sql3, p3)
         stats_row = cursor.fetchone()
-        db.close()
-
         total = float(stats_row['total'] or 0) if stats_row else 0
         count = int(stats_row['count'] or 0) if stats_row else 0
 
         if count == 0:
-            return jsonify({'insights': 'No expenses found yet. Add some expenses first, then come back for AI-powered insights into your spending patterns!'})
+            text = 'No expenses found yet. Add some expenses first, then come back for AI-powered insights into your spending patterns!'
+            if USE_POSTGRES:
+                cursor.execute(
+                    "UPDATE ai_insights SET insights_text = %s, status = 'ready', generated_at = %s WHERE user_id = %s",
+                    (text, now_str, user_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE ai_insights SET insights_text = ?, status = 'ready', generated_at = ? WHERE user_id = ?",
+                    (text, now_str, user_id)
+                )
+            db.commit()
+            db.close()
+            return
 
-        # Build summary for AI (ensure numeric types for JSON-safe formatting)
         cat_summary = ', '.join([
             f"{c['category']}: AED {float(c['total']):.2f} ({int(c.get('count', 0))} transactions)"
             for c in by_category
@@ -1091,7 +1112,6 @@ def ai_insights():
             f"- {r.get('date', '')}: {r.get('category', '')} - AED {float(r.get('amount', 0)):.2f} ({r.get('vendor') or r.get('description') or 'N/A'})"
             for r in rows[:30]
         ])
-
         prompt = f"""You are a personal finance advisor. Analyze this user's spending data and provide helpful, actionable insights.
 
 Summary:
@@ -1111,14 +1131,115 @@ Be friendly, specific, and practical. Use the actual numbers. Do not use markdow
 
         result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
         if result:
-            return jsonify({'insights': result})
-        if err_kind == 'rate_limit':
-            return jsonify({'error': 'AI rate limit reached. Please try again in a few minutes.'}), 503
-        if err_kind == 'timeout':
-            return jsonify({'error': 'AI is taking too long to respond. Please try again.'}), 504
-        return jsonify({'error': 'AI service is temporarily unavailable. Please try again later.'}), 503
+            text = result
+        elif err_kind == 'rate_limit':
+            text = 'AI rate limit reached. Please try again in a few minutes.'
+        elif err_kind == 'timeout':
+            text = 'AI is taking too long to respond. Please try again.'
+        else:
+            text = 'AI service is temporarily unavailable. Please try again later.'
+
+        if USE_POSTGRES:
+            cursor.execute(
+                "UPDATE ai_insights SET insights_text = %s, status = 'ready', generated_at = %s WHERE user_id = %s",
+                (text, now_str, user_id)
+            )
+        else:
+            cursor.execute(
+                "UPDATE ai_insights SET insights_text = ?, status = 'ready', generated_at = ? WHERE user_id = ?",
+                (text, now_str, user_id)
+            )
+        db.commit()
+        db.close()
     except Exception as e:
-        app.logger.exception('AI insights failed')
+        app.logger.exception('AI insights background job failed')
+        try:
+            db = get_db()
+            cursor = db.cursor()
+            err_text = 'Server error while generating insights. Please try again.'
+            if USE_POSTGRES:
+                cursor.execute(
+                    "UPDATE ai_insights SET insights_text = %s, status = 'ready', generated_at = %s WHERE user_id = %s",
+                    (err_text, now_str, user_id)
+            else:
+                cursor.execute(
+                    "UPDATE ai_insights SET insights_text = ?, status = 'ready', generated_at = ? WHERE user_id = ?",
+                    (err_text, now_str, user_id)
+            )
+            db.commit()
+            db.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/ai-insights', methods=['GET'])
+@login_required
+def ai_insights_get():
+    """Return current AI insights status or cached result (for polling)."""
+    user_id = session['user_id']
+    db = get_db()
+    cursor = db.cursor()
+    sql, p = _sql('SELECT insights_text, status, generated_at FROM ai_insights WHERE user_id = ?', (user_id,))
+    cursor.execute(sql, p)
+    row = cursor.fetchone()
+    db.close()
+    if not row:
+        return jsonify({'status': 'none'})
+    status = row['status'] if hasattr(row, 'keys') else row[1]
+    if status == 'generating':
+        return jsonify({'status': 'generating'})
+    insights_text = row['insights_text'] if hasattr(row, 'keys') else row[0]
+    generated_at = row['generated_at'] if hasattr(row, 'keys') else row[2]
+    if hasattr(generated_at, 'strftime'):
+        generated_at = generated_at.strftime('%Y-%m-%dT%H:%M:%SZ')
+    return jsonify({'status': 'ready', 'insights': insights_text or '', 'generated_at': generated_at})
+
+
+@app.route('/api/ai-insights', methods=['POST'])
+@login_required
+def ai_insights():
+    """Start AI insights generation (returns immediately; frontend polls GET for result). Avoids proxy timeout on free tier."""
+    try:
+        if not OPENROUTER_API_KEY:
+            return jsonify({'error': 'AI insights are not available. Set OPENROUTER_API_KEY environment variable.'}), 503
+
+        user_id = session['user_id']
+        db = get_db()
+        cursor = db.cursor()
+        sql, p = _sql('SELECT status FROM ai_insights WHERE user_id = ?', (user_id,))
+        cursor.execute(sql, p)
+        row = cursor.fetchone()
+        if row:
+            current_status = row['status'] if hasattr(row, 'keys') else row[0]
+            if current_status == 'generating':
+                db.close()
+                return jsonify({
+                    'status': 'generating',
+                    'message': 'AI is already analyzing your spending. The page will update automatically in about 60–90 seconds.'
+                })
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO ai_insights (user_id, status, insights_text, generated_at)
+                VALUES (%s, 'generating', NULL, NULL)
+                ON CONFLICT (user_id) DO UPDATE SET status = 'generating', insights_text = NULL, generated_at = NULL
+            ''', (user_id,))
+        else:
+            cursor.execute('''
+                INSERT OR REPLACE INTO ai_insights (user_id, status, insights_text, generated_at)
+                VALUES (?, 'generating', NULL, NULL)
+            ''', (user_id,))
+        db.commit()
+        db.close()
+
+        threading.Thread(target=_run_ai_insights_job, args=(user_id,), daemon=True).start()
+
+        return jsonify({
+            'status': 'generating',
+            'message': 'AI is analyzing your spending. This may take 60–90 seconds. Keep this page open — it will update automatically.'
+        })
+    except Exception as e:
+        app.logger.exception('AI insights start failed')
         err_msg = 'Server error. Please try again.'
         if DEBUG_ERRORS:
             err_msg = str(e)

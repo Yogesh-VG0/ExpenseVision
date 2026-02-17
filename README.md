@@ -114,7 +114,7 @@ Dashboard
 
 On first run, the app creates the database and seeds default categories. AI features (insights and enhanced receipt parsing) require the `OPENROUTER_API_KEY` environment variable; without it, the app works normally using regex-based parsing and the ML classifier.
 
-**Deploying on Render:** The repo includes a `Procfile` with `gunicorn --timeout 120 --workers 1 app:app`. If your Render service uses a custom Start Command, set it to that so the AI insights request is not killed at 30 seconds. Free-tier AI (DeepSeek R1) can take 60–90 seconds to respond.
+**Deploying on Render:** Use Start Command `gunicorn --timeout 120 --workers 1 app:app`. On the **free tier**, Render’s proxy has a ~30 second request timeout, so long-running AI insights may return 502 even though the worker allows 120s. If that happens, the UI suggests retrying (the model often succeeds on retry). For reliable long requests, use a paid plan or another host with a longer proxy timeout.
 
 ---
 
