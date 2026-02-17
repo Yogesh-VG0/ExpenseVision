@@ -9,9 +9,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Trigger staggered landing page animations
     const animElements = document.querySelectorAll('.anim-fade-in');
-    animElements.forEach((el, index) => {
+    animElements.forEach((el) => {
         el.style.animationPlayState = 'running';
     });
+
+    // Scroll-triggered animation for auth section on mobile (seamless reveal)
+    const authSection = document.querySelector('.landing-auth');
+    if (authSection && window.matchMedia('(max-width: 1024px)').matches) {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('auth-visible');
+                    }
+                });
+            },
+            { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+        );
+        observer.observe(authSection);
+        // If auth is already in view (short viewport), show immediately
+        if (authSection.getBoundingClientRect().top < window.innerHeight * 0.8) {
+            authSection.classList.add('auth-visible');
+        }
+    } else if (authSection) {
+        authSection.classList.add('auth-visible');
+    }
 
     // Tab switching
     tabButtons.forEach(btn => {

@@ -141,9 +141,14 @@ On first run, the app creates the database and seeds default categories. AI feat
 
 ---
 
+### OpenRouter free tier limits
+- **:free** models (e.g. DeepSeek R1): **20 requests per minute**; **50 requests per day** (or 1000/day if you have purchased ≥10 credits). See [OpenRouter rate limits](https://openrouter.ai/docs/api-reference/limits). The app retries once after 60s on 429 to stay under the per-minute cap.
+
+---
+
 ### Limitations and Future Work
 - OCR accuracy depends on image quality; AI parsing significantly improves results but requires an API key.
 - The keyword-based ML classifier is simple; replacing it with a supervised model would improve accuracy.
-- DeepSeek R1 is free but may have latency; responses are cached client-side per session.
+- DeepSeek R1 is free but may have latency; responses are cached in the database and the app retries on rate limit.
 - Add budgets, recurring expenses, income tracking, multi-currency support, and richer analytics.
 - Add user profile settings, password reset flows, and optional cloud sync.
