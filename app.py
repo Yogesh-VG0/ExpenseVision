@@ -142,21 +142,26 @@ def init_db():
             )
         ''')
         default_categories = [
-            ('Food & Dining', '≡ƒìö'),
-            ('Transportation', '≡ƒÜù'),
-            ('Shopping', '≡ƒ¢ì∩╕Å'),
-            ('Entertainment', '≡ƒÄ¼'),
-            ('Bills & Utilities', '≡ƒÆí'),
-            ('Healthcare', 'ΓÜò∩╕Å'),
-            ('Education', '≡ƒôÜ'),
-            ('Travel', 'Γ£ê∩╕Å'),
-            ('Groceries', '≡ƒ¢Æ'),
-            ('Other', '≡ƒôª')
+            ('Food & Dining', '\U0001f37d'),
+            ('Transportation', '\U0001f697'),
+            ('Shopping', '\U0001f6d2'),
+            ('Entertainment', '\U0001f3ac'),
+            ('Bills & Utilities', '\U0001f4ca'),
+            ('Healthcare', '\U0001f3e5'),
+            ('Education', '\U0001f4da'),
+            ('Travel', '\U0001f6eb'),
+            ('Groceries', '\U0001f96c'),
+            ('Other', '\U0001f4e6'),
         ]
         for cat_name, icon in default_categories:
             cursor.execute(
                 "INSERT INTO categories (name, icon) VALUES (%s, %s) ON CONFLICT (name) DO NOTHING",
                 (cat_name, icon)
+            )
+        for cat_name, icon in default_categories:
+            cursor.execute(
+                "UPDATE categories SET icon = %s WHERE name = %s",
+                (icon, cat_name)
             )
     else:
         # SQLite DDL
@@ -189,20 +194,22 @@ def init_db():
             )
         ''')
         default_categories = [
-            ('Food & Dining', '≡ƒìö'),
-            ('Transportation', '≡ƒÜù'),
-            ('Shopping', '≡ƒ¢ì∩╕Å'),
-            ('Entertainment', '≡ƒÄ¼'),
-            ('Bills & Utilities', '≡ƒÆí'),
-            ('Healthcare', 'ΓÜò∩╕Å'),
-            ('Education', '≡ƒôÜ'),
-            ('Travel', 'Γ£ê∩╕Å'),
-            ('Groceries', '≡ƒ¢Æ'),
-            ('Other', '≡ƒôª')
+            ('Food & Dining', '\U0001f37d'),
+            ('Transportation', '\U0001f697'),
+            ('Shopping', '\U0001f6d2'),
+            ('Entertainment', '\U0001f3ac'),
+            ('Bills & Utilities', '\U0001f4ca'),
+            ('Healthcare', '\U0001f3e5'),
+            ('Education', '\U0001f4da'),
+            ('Travel', '\U0001f6eb'),
+            ('Groceries', '\U0001f96c'),
+            ('Other', '\U0001f4e6'),
         ]
         for cat_name, icon in default_categories:
             cursor.execute('INSERT OR IGNORE INTO categories (name, icon) VALUES (?, ?)',
                            (cat_name, icon))
+        for cat_name, icon in default_categories:
+            cursor.execute('UPDATE categories SET icon = ? WHERE name = ?', (icon, cat_name))
 
     db.commit()
     db.close()
@@ -324,7 +331,8 @@ def _call_openrouter(messages, max_tokens=2048):
             'messages': messages,
             'max_tokens': max_tokens,
         }
-        resp = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=120)
+        # 85s so we return 504 before Gunicorn worker timeout (120s)
+        resp = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=85)
         if resp.status_code == 429:
             app.logger.warning('OpenRouter rate limit (429)')
             return None, 'rate_limit'

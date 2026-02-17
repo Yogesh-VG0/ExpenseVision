@@ -1,7 +1,5 @@
 # ExpenseVision
 
-#### Video Demo: https://youtu.be/Y1CeMCh7we0
-
 #### Description
 ExpenseVision is a full-stack expense tracking web application that helps you capture, categorize, analyze, and export your spending. It combines a modern, responsive frontend with a robust Flask backend, SQLite/PostgreSQL database support, OCR-powered receipt scanning via Tesseract (or Veryfi API), AI-enhanced receipt parsing and spending insights via DeepSeek R1 (OpenRouter), and a keyword-driven machine learning classifier that learns from your inputs over time.
 
@@ -115,6 +113,8 @@ Dashboard
 5. **Open** `http://localhost:5000`
 
 On first run, the app creates the database and seeds default categories. AI features (insights and enhanced receipt parsing) require the `OPENROUTER_API_KEY` environment variable; without it, the app works normally using regex-based parsing and the ML classifier.
+
+**Deploying on Render:** The repo includes a `Procfile` with `gunicorn --timeout 120 --workers 1 app:app`. If your Render service uses a custom Start Command, set it to that so the AI insights request is not killed at 30 seconds. Free-tier AI (DeepSeek R1) can take 60–90 seconds to respond.
 
 ---
 
