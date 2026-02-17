@@ -1161,11 +1161,12 @@ Be friendly, specific, and practical. Use the actual numbers. Do not use markdow
                 cursor.execute(
                     "UPDATE ai_insights SET insights_text = %s, status = 'ready', generated_at = %s WHERE user_id = %s",
                     (err_text, now_str, user_id)
+                )
             else:
                 cursor.execute(
                     "UPDATE ai_insights SET insights_text = ?, status = 'ready', generated_at = ? WHERE user_id = ?",
                     (err_text, now_str, user_id)
-            )
+                )
             db.commit()
             db.close()
         except Exception:
