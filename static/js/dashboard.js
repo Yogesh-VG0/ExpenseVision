@@ -785,7 +785,7 @@ function pollAIInsights() {
     const loading = document.getElementById('ai-loading');
     const content = document.getElementById('ai-insights-content');
     const started = Date.now();
-    const maxWait = 120000; // 2 min
+    const maxWait = 200000; // ~3.3 min (DeepSeek R1 first token can take 75+ s, full response ~2+ min)
 
     function stopPolling() {
         if (aiPollTimer) clearInterval(aiPollTimer);
@@ -798,7 +798,7 @@ function pollAIInsights() {
         if (Date.now() - started > maxWait) {
             stopPolling();
             content.style.display = 'block';
-            content.textContent = 'Generation is taking longer than expected. You can try again in a moment.';
+            content.textContent = 'Still generating. DeepSeek R1 can take 2+ minutes. Refresh the page in a moment to see your insights if they\'re ready.';
             return;
         }
         try {
