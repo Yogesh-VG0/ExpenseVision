@@ -764,7 +764,18 @@ async function loadAIInsights() {
             headers: { 'Content-Type': 'application/json' }
         });
 
-        const data = await response.json();
+        let data;
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            try {
+                data = JSON.parse(text);
+            } catch {
+                data = { error: response.ok ? 'Invalid response.' : 'Server error or request timed out. The free AI model can take 30+ seconds — please try again.' };
+            }
+        }
         loading.style.display = 'none';
 
         if (response.ok && data.insights) {
@@ -778,7 +789,7 @@ async function loadAIInsights() {
         console.error('AI insights error:', error);
         loading.style.display = 'none';
         content.style.display = 'block';
-        content.textContent = 'An error occurred while generating insights.';
+        content.textContent = 'An error occurred while generating insights. If the request took a long time, the server may have timed out — try again.';
     } finally {
         btn.disabled = false;
     }

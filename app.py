@@ -1020,55 +1020,59 @@ def predict_category():
 @login_required
 def ai_insights():
     """Generate AI-powered spending insights using DeepSeek R1 via OpenRouter."""
-    if not OPENROUTER_API_KEY:
-        return jsonify({'error': 'AI insights are not available. Set OPENROUTER_API_KEY environment variable.'}), 503
+    try:
+        if not OPENROUTER_API_KEY:
+            return jsonify({'error': 'AI insights are not available. Set OPENROUTER_API_KEY environment variable.'}), 503
 
-    user_id = session['user_id']
-    db = get_db()
-    cursor = db.cursor()
+        user_id = session['user_id']
+        db = get_db()
+        cursor = db.cursor()
 
-    # Fetch recent expenses (last 90 days, up to 200)
-    sql, p = _sql('''
-        SELECT category, amount, date, vendor, description
-        FROM expenses
-        WHERE user_id = ?
-        ORDER BY date DESC
-        LIMIT 200
-    ''', (user_id,))
-    cursor.execute(sql, p)
-    rows = [_row_to_dict(row) for row in cursor.fetchall()]
+        # Fetch recent expenses (last 90 days, up to 200)
+        sql, p = _sql('''
+            SELECT category, amount, date, vendor, description
+            FROM expenses
+            WHERE user_id = ?
+            ORDER BY date DESC
+            LIMIT 200
+        ''', (user_id,))
+        cursor.execute(sql, p)
+        rows = [_row_to_dict(row) for row in cursor.fetchall()]
 
-    # Get aggregated stats
-    sql2, p2 = _sql('''
-        SELECT category, SUM(amount) as total, COUNT(*) as count
-        FROM expenses WHERE user_id = ?
-        GROUP BY category ORDER BY total DESC
-    ''', (user_id,))
-    cursor.execute(sql2, p2)
-    by_category = [dict(row) for row in cursor.fetchall()]
+        # Get aggregated stats
+        sql2, p2 = _sql('''
+            SELECT category, SUM(amount) as total, COUNT(*) as count
+            FROM expenses WHERE user_id = ?
+            GROUP BY category ORDER BY total DESC
+        ''', (user_id,))
+        cursor.execute(sql2, p2)
+        by_category = [dict(row) for row in cursor.fetchall()]
 
-    sql3, p3 = _sql('''
-        SELECT SUM(amount) as total, COUNT(*) as count, AVG(amount) as average
-        FROM expenses WHERE user_id = ?
-    ''', (user_id,))
-    cursor.execute(sql3, p3)
-    stats_row = cursor.fetchone()
-    db.close()
+        sql3, p3 = _sql('''
+            SELECT SUM(amount) as total, COUNT(*) as count, AVG(amount) as average
+            FROM expenses WHERE user_id = ?
+        ''', (user_id,))
+        cursor.execute(sql3, p3)
+        stats_row = cursor.fetchone()
+        db.close()
 
-    total = float(stats_row['total'] or 0) if stats_row else 0
-    count = int(stats_row['count'] or 0) if stats_row else 0
+        total = float(stats_row['total'] or 0) if stats_row else 0
+        count = int(stats_row['count'] or 0) if stats_row else 0
 
-    if count == 0:
-        return jsonify({'insights': 'No expenses found yet. Add some expenses first, then come back for AI-powered insights into your spending patterns!'})
+        if count == 0:
+            return jsonify({'insights': 'No expenses found yet. Add some expenses first, then come back for AI-powered insights into your spending patterns!'})
 
-    # Build summary for AI
-    cat_summary = ', '.join([f"{c['category']}: AED {float(c['total']):.2f} ({c['count']} transactions)" for c in by_category])
-    recent_items = '\n'.join([
-        f"- {r['date']}: {r['category']} - AED {float(r['amount']):.2f} ({r.get('vendor') or r.get('description') or 'N/A'})"
-        for r in rows[:30]
-    ])
+        # Build summary for AI (ensure numeric types for JSON-safe formatting)
+        cat_summary = ', '.join([
+            f"{c['category']}: AED {float(c['total']):.2f} ({int(c.get('count', 0))} transactions)"
+            for c in by_category
+        ])
+        recent_items = '\n'.join([
+            f"- {r.get('date', '')}: {r.get('category', '')} - AED {float(r.get('amount', 0)):.2f} ({r.get('vendor') or r.get('description') or 'N/A'})"
+            for r in rows[:30]
+        ])
 
-    prompt = f"""You are a personal finance advisor. Analyze this user's spending data and provide helpful, actionable insights.
+        prompt = f"""You are a personal finance advisor. Analyze this user's spending data and provide helpful, actionable insights.
 
 Summary:
 - Total spent: AED {total:.2f} across {count} transactions
@@ -1085,10 +1089,16 @@ Provide a concise analysis (3-5 paragraphs) covering:
 
 Be friendly, specific, and practical. Use the actual numbers. Do not use markdown headers or bullet points - write in flowing paragraphs."""
 
-    result = _call_openrouter([{'role': 'user', 'content': prompt}])
-    if result:
-        return jsonify({'insights': result})
-    return jsonify({'error': 'AI service is temporarily unavailable. Please try again later.'}), 503
+        result = _call_openrouter([{'role': 'user', 'content': prompt}])
+        if result:
+            return jsonify({'insights': result})
+        return jsonify({'error': 'AI service is temporarily unavailable. Please try again later.'}), 503
+    except Exception as e:
+        app.logger.exception('AI insights failed')
+        err_msg = 'Server error. Please try again.'
+        if DEBUG_ERRORS:
+            err_msg = str(e)
+        return jsonify({'error': err_msg}), 500
 
 
 @app.route('/api/export/csv', methods=['GET'])
