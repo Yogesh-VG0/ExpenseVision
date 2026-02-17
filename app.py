@@ -308,9 +308,12 @@ OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 
 def _call_openrouter(messages, max_tokens=2048):
-    """Call OpenRouter API with DeepSeek R1 model. Returns response text or None on failure."""
+    """Call OpenRouter API with DeepSeek R1 model.
+    Returns (content, None) on success, (None, error_kind) on failure.
+    error_kind: 'rate_limit' (429), 'timeout', or 'unavailable'.
+    """
     if not OPENROUTER_API_KEY:
-        return None
+        return None, 'unavailable'
     try:
         headers = {
             'Authorization': f'Bearer {OPENROUTER_API_KEY}',
@@ -322,16 +325,25 @@ def _call_openrouter(messages, max_tokens=2048):
             'max_tokens': max_tokens,
         }
         resp = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=120)
+        if resp.status_code == 429:
+            app.logger.warning('OpenRouter rate limit (429)')
+            return None, 'rate_limit'
         resp.raise_for_status()
         data = resp.json()
         content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
         # DeepSeek R1 may include <think>...</think> reasoning; strip it for clean output
-        if '<think>' in content and '</think>' in content:
+        if content and '<think>' in content and '</think>' in content:
             content = content.split('</think>')[-1].strip()
-        return content
+        return content, None
+    except requests.exceptions.Timeout:
+        app.logger.error('OpenRouter API timeout')
+        return None, 'timeout'
+    except requests.exceptions.HTTPError as e:
+        app.logger.error(f'OpenRouter API HTTP error: {e}')
+        return None, 'unavailable'
     except Exception as e:
         app.logger.error(f'OpenRouter API error: {e}')
-        return None
+        return None, 'unavailable'
 
 
 def _ai_parse_receipt(raw_text):
@@ -352,7 +364,7 @@ Return ONLY valid JSON, no other text.
 Raw OCR text:
 {raw_text[:3000]}"""
 
-    result = _call_openrouter([{'role': 'user', 'content': prompt}], max_tokens=512)
+    result, _ = _call_openrouter([{'role': 'user', 'content': prompt}], max_tokens=512)
     if not result:
         return None
 
@@ -1089,9 +1101,13 @@ Provide a concise analysis (3-5 paragraphs) covering:
 
 Be friendly, specific, and practical. Use the actual numbers. Do not use markdown headers or bullet points - write in flowing paragraphs."""
 
-        result = _call_openrouter([{'role': 'user', 'content': prompt}])
+        result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
         if result:
             return jsonify({'insights': result})
+        if err_kind == 'rate_limit':
+            return jsonify({'error': 'AI rate limit reached. Please try again in a few minutes.'}), 503
+        if err_kind == 'timeout':
+            return jsonify({'error': 'AI is taking too long to respond. Please try again.'}), 504
         return jsonify({'error': 'AI service is temporarily unavailable. Please try again later.'}), 503
     except Exception as e:
         app.logger.exception('AI insights failed')
