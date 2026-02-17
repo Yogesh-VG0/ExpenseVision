@@ -1130,10 +1130,14 @@ Provide a concise analysis (3-5 paragraphs) covering:
 Be friendly, specific, and practical. Use the actual numbers. Do not use markdown headers or bullet points - write in flowing paragraphs."""
 
         result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
+        if not result and err_kind == 'rate_limit':
+            app.logger.info('OpenRouter 429, retrying after 60s')
+            time.sleep(60)
+            result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
         if result:
             text = result
         elif err_kind == 'rate_limit':
-            text = 'AI rate limit reached. Please try again in a few minutes.'
+            text = 'AI rate limit reached (OpenRouter free tier). Please wait a few minutes and try again.'
         elif err_kind == 'timeout':
             text = 'AI is taking too long to respond. Please try again.'
         else:
