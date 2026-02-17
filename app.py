@@ -341,6 +341,25 @@ OPENROUTER_MODEL = 'deepseek/deepseek-r1-0528:free'
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 
+def _sanitize_insight_text(text):
+    """Strip markdown and normalize whitespace for clean display in the UI."""
+    if not text or not isinstance(text, str):
+        return text or ''
+    # Remove bold/italic markdown
+    s = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    s = re.sub(r'\*([^*]+)\*', r'\1', s)
+    s = re.sub(r'__([^_]+)__', r'\1', s)
+    s = re.sub(r'_([^_]+)_', r'\1', s)
+    # Remove headers (# ## ###)
+    s = re.sub(r'^#+\s*', '', s, flags=re.MULTILINE)
+    # Bullet/number lines -> plain (keep content, drop leading markers)
+    s = re.sub(r'^\s*[\*\-]\s+', '', s, flags=re.MULTILINE)
+    s = re.sub(r'^\s*\d+\.\s+', '', s, flags=re.MULTILINE)
+    # Collapse multiple newlines to two max
+    s = re.sub(r'\n{3,}', '\n\n', s)
+    return s.strip()
+
+
 def _call_openrouter(messages, max_tokens=2048):
     """Call OpenRouter API with DeepSeek R1 model.
     Returns (content, None) on success, (None, error_kind) on failure.
@@ -1112,22 +1131,11 @@ def _run_ai_insights_job(user_id):
             f"- {r.get('date', '')}: {r.get('category', '')} - AED {float(r.get('amount', 0)):.2f} ({r.get('vendor') or r.get('description') or 'N/A'})"
             for r in rows[:30]
         ])
-        prompt = f"""You are a personal finance advisor. Analyze this user's spending data and provide helpful, actionable insights.
+        prompt = f"""You are a friendly finance coach. In plain, readable text (no markdown, no bold, no bullets, no numbered lists), give a short spending summary the user will enjoy reading in an app card.
 
-Summary:
-- Total spent: AED {total:.2f} across {count} transactions
-- By category: {cat_summary}
+Data: Total AED {total:.2f} in {count} transactions. By category: {cat_summary}. Recent transactions: {recent_items}
 
-Recent transactions (newest first):
-{recent_items}
-
-Provide a concise analysis (3-5 paragraphs) covering:
-1. Top spending categories and whether they seem reasonable
-2. Notable patterns or trends you observe
-3. Specific, actionable tips to save money
-4. A brief overall assessment
-
-Be friendly, specific, and practical. Use the actual numbers. Do not use markdown headers or bullet points - write in flowing paragraphs."""
+Write 2 or 3 short paragraphs only. First: what stands out about their spending (categories, totals). Second: one or two simple, actionable tips. Third: one encouraging line. Use their numbers. Sound warm and concise, like a quick note from a helpful friend. Output plain text only—no ** or # or * or numbered items."""
 
         result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
         if not result and err_kind == 'rate_limit':
@@ -1135,9 +1143,9 @@ Be friendly, specific, and practical. Use the actual numbers. Do not use markdow
             time.sleep(60)
             result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
         if result:
-            text = result
+            text = _sanitize_insight_text(result)
         elif err_kind == 'rate_limit':
-            text = 'AI rate limit reached (OpenRouter free tier). Please wait a few minutes and try again.'
+            text = 'AI rate limit reached. OpenRouter free tier allows 20 requests per minute and 50 per day. The app will retry once after a minute; if you still see this, wait a few minutes and try again.'
         elif err_kind == 'timeout':
             text = 'AI is taking too long to respond. Please try again.'
         else:
