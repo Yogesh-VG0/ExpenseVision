@@ -301,6 +301,89 @@ def parse_receipt_text(text):
     return result
 
 
+# OpenRouter API (DeepSeek R1): AI insights and enhanced receipt parsing
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
+OPENROUTER_MODEL = 'deepseek/deepseek-r1-0528:free'
+OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+
+
+def _call_openrouter(messages, max_tokens=2048):
+    """Call OpenRouter API with DeepSeek R1 model. Returns response text or None on failure."""
+    if not OPENROUTER_API_KEY:
+        return None
+    try:
+        headers = {
+            'Authorization': f'Bearer {OPENROUTER_API_KEY}',
+            'Content-Type': 'application/json',
+        }
+        payload = {
+            'model': OPENROUTER_MODEL,
+            'messages': messages,
+            'max_tokens': max_tokens,
+        }
+        resp = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=120)
+        resp.raise_for_status()
+        data = resp.json()
+        content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+        # DeepSeek R1 may include <think>...</think> reasoning; strip it for clean output
+        if '<think>' in content and '</think>' in content:
+            content = content.split('</think>')[-1].strip()
+        return content
+    except Exception as e:
+        app.logger.error(f'OpenRouter API error: {e}')
+        return None
+
+
+def _ai_parse_receipt(raw_text):
+    """Use DeepSeek R1 via OpenRouter to extract structured data from raw OCR text.
+    Returns dict with amount, vendor, date, category, description or None on failure."""
+    if not OPENROUTER_API_KEY or not raw_text or len(raw_text.strip()) < 5:
+        return None
+
+    prompt = f"""You are an expense receipt parser. Given the raw OCR text from a receipt image, extract the following fields as JSON:
+- "amount": the total amount as a number (no currency symbol)
+- "vendor": the store/vendor name
+- "date": the date in YYYY-MM-DD format
+- "category": one of: Food & Dining, Transportation, Shopping, Entertainment, Bills & Utilities, Healthcare, Education, Travel, Groceries, Other
+- "description": a brief summary of items purchased (max 200 chars)
+
+Return ONLY valid JSON, no other text.
+
+Raw OCR text:
+{raw_text[:3000]}"""
+
+    result = _call_openrouter([{'role': 'user', 'content': prompt}], max_tokens=512)
+    if not result:
+        return None
+
+    try:
+        # Try to extract JSON from the response
+        json_match = re.search(r'\{[^}]+\}', result, re.DOTALL)
+        if json_match:
+            parsed = json.loads(json_match.group())
+            # Validate and clean
+            cleaned = {}
+            if 'amount' in parsed:
+                try:
+                    val = float(str(parsed['amount']).replace(',', '').replace('$', ''))
+                    if 0 < val < 100000:
+                        cleaned['amount'] = val
+                except (ValueError, TypeError):
+                    pass
+            if 'vendor' in parsed and parsed['vendor']:
+                cleaned['vendor'] = str(parsed['vendor'])[:200]
+            if 'date' in parsed and parsed['date']:
+                cleaned['date'] = str(parsed['date'])[:10]
+            if 'category' in parsed and parsed['category']:
+                cleaned['predicted_category'] = str(parsed['category'])
+            if 'description' in parsed and parsed['description']:
+                cleaned['description'] = str(parsed['description'])[:500]
+            return cleaned if cleaned else None
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    return None
+
+
 # Veryfi API (optional): receipt OCR in production without Tesseract
 VERYFI_CLIENT_ID = os.environ.get('VERYFI_CLIENT_ID', '').strip()
 VERYFI_USERNAME = os.environ.get('VERYFI_USERNAME', '').strip()
@@ -888,10 +971,24 @@ def ocr_receipt():
             parsed.setdefault('items', [])
         else:
             text = extract_text_from_image(filepath)
-            parsed = parse_receipt_text(text)
-            if parsed.get('vendor'):
-                parsed['predicted_category'] = classifier.predict_category(parsed['vendor'], parsed['vendor'])
             raw_text = text
+
+            # Try AI-enhanced parsing first (DeepSeek R1 via OpenRouter)
+            ai_parsed = _ai_parse_receipt(text)
+            if ai_parsed:
+                parsed = {
+                    'amount': ai_parsed.get('amount'),
+                    'vendor': ai_parsed.get('vendor'),
+                    'date': ai_parsed.get('date'),
+                    'description': ai_parsed.get('description'),
+                    'predicted_category': ai_parsed.get('predicted_category'),
+                    'items': [],
+                }
+            else:
+                # Fall back to regex-based parsing
+                parsed = parse_receipt_text(text)
+                if parsed.get('vendor'):
+                    parsed['predicted_category'] = classifier.predict_category(parsed['vendor'], parsed['vendor'])
 
         os.remove(filepath)
         return jsonify({'success': True, 'raw_text': raw_text, 'parsed': parsed})
@@ -917,6 +1014,81 @@ def predict_category():
     predicted = classifier.predict_category(description, vendor)
 
     return jsonify({'category': predicted})
+
+
+@app.route('/api/ai-insights', methods=['POST'])
+@login_required
+def ai_insights():
+    """Generate AI-powered spending insights using DeepSeek R1 via OpenRouter."""
+    if not OPENROUTER_API_KEY:
+        return jsonify({'error': 'AI insights are not available. Set OPENROUTER_API_KEY environment variable.'}), 503
+
+    user_id = session['user_id']
+    db = get_db()
+    cursor = db.cursor()
+
+    # Fetch recent expenses (last 90 days, up to 200)
+    sql, p = _sql('''
+        SELECT category, amount, date, vendor, description
+        FROM expenses
+        WHERE user_id = ?
+        ORDER BY date DESC
+        LIMIT 200
+    ''', (user_id,))
+    cursor.execute(sql, p)
+    rows = [_row_to_dict(row) for row in cursor.fetchall()]
+
+    # Get aggregated stats
+    sql2, p2 = _sql('''
+        SELECT category, SUM(amount) as total, COUNT(*) as count
+        FROM expenses WHERE user_id = ?
+        GROUP BY category ORDER BY total DESC
+    ''', (user_id,))
+    cursor.execute(sql2, p2)
+    by_category = [dict(row) for row in cursor.fetchall()]
+
+    sql3, p3 = _sql('''
+        SELECT SUM(amount) as total, COUNT(*) as count, AVG(amount) as average
+        FROM expenses WHERE user_id = ?
+    ''', (user_id,))
+    cursor.execute(sql3, p3)
+    stats_row = cursor.fetchone()
+    db.close()
+
+    total = float(stats_row['total'] or 0) if stats_row else 0
+    count = int(stats_row['count'] or 0) if stats_row else 0
+
+    if count == 0:
+        return jsonify({'insights': 'No expenses found yet. Add some expenses first, then come back for AI-powered insights into your spending patterns!'})
+
+    # Build summary for AI
+    cat_summary = ', '.join([f"{c['category']}: AED {float(c['total']):.2f} ({c['count']} transactions)" for c in by_category])
+    recent_items = '\n'.join([
+        f"- {r['date']}: {r['category']} - AED {float(r['amount']):.2f} ({r.get('vendor') or r.get('description') or 'N/A'})"
+        for r in rows[:30]
+    ])
+
+    prompt = f"""You are a personal finance advisor. Analyze this user's spending data and provide helpful, actionable insights.
+
+Summary:
+- Total spent: AED {total:.2f} across {count} transactions
+- By category: {cat_summary}
+
+Recent transactions (newest first):
+{recent_items}
+
+Provide a concise analysis (3-5 paragraphs) covering:
+1. Top spending categories and whether they seem reasonable
+2. Notable patterns or trends you observe
+3. Specific, actionable tips to save money
+4. A brief overall assessment
+
+Be friendly, specific, and practical. Use the actual numbers. Do not use markdown headers or bullet points - write in flowing paragraphs."""
+
+    result = _call_openrouter([{'role': 'user', 'content': prompt}])
+    if result:
+        return jsonify({'insights': result})
+    return jsonify({'error': 'AI service is temporarily unavailable. Please try again later.'}), 503
 
 
 @app.route('/api/export/csv', methods=['GET'])

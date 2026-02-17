@@ -128,6 +128,12 @@ function setupEventListeners() {
             closeEditModal();
         }
     });
+
+    // AI Insights button
+    const aiBtn = document.getElementById('ai-insights-btn');
+    if (aiBtn) {
+        aiBtn.addEventListener('click', loadAIInsights);
+    }
 }
 
 function openMobileNav() {
@@ -205,7 +211,6 @@ async function loadCategories() {
 
         selects.forEach(select => {
             if (select.id === 'category-filter') {
-                // Keep "All Categories" option for filter
                 select.innerHTML = '<option value="">All Categories</option>';
             } else {
                 select.innerHTML = '<option value="">Select a category</option>';
@@ -250,7 +255,17 @@ function displayExpenses() {
     const tbody = document.getElementById('expenses-tbody');
 
     if (expenses.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No expenses found. Add your first expense!</td></tr>';
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6">
+                    <div class="table-empty-state">
+                        <div class="empty-icon">💸</div>
+                        <div class="empty-title">No expenses yet</div>
+                        <div class="empty-desc">Start tracking your spending by adding your first expense.</div>
+                        <button class="btn btn-primary" onclick="switchView('add-expense')">➕ Add Expense</button>
+                    </div>
+                </td>
+            </tr>`;
         return;
     }
 
@@ -454,7 +469,6 @@ async function processReceipt(file) {
             document.getElementById('ocr-loading').style.display = 'none';
             document.getElementById('ocr-result').style.display = 'block';
 
-            // Populate form with parsed data
             if (data.parsed.amount) {
                 document.getElementById('ocr-amount').value = data.parsed.amount;
             }
@@ -541,7 +555,7 @@ async function loadAnalytics() {
         document.getElementById('total-count').textContent = data.stats.count || 0;
         document.getElementById('average-expense').textContent = `${CURRENCY}${(data.stats.average || 0).toFixed(2)}`;
 
-        // Update charts
+        // Update charts with empty state handling
         updateCategoryChart(data.by_category);
         updateMonthChart(data.by_month);
         updateDayChart(data.by_day || []);
@@ -550,7 +564,28 @@ async function loadAnalytics() {
     }
 }
 
+function showChartEmptyState(chartId, emptyId, isEmpty) {
+    const canvas = document.getElementById(chartId);
+    const empty = document.getElementById(emptyId);
+    if (!canvas || !empty) return;
+
+    if (isEmpty) {
+        canvas.style.display = 'none';
+        empty.classList.add('visible');
+    } else {
+        canvas.style.display = 'block';
+        empty.classList.remove('visible');
+    }
+}
+
 function updateCategoryChart(data) {
+    const isEmpty = !data || data.length === 0;
+    showChartEmptyState('category-chart', 'category-empty', isEmpty);
+    if (isEmpty) {
+        if (categoryChart) { categoryChart.destroy(); categoryChart = null; }
+        return;
+    }
+
     const ctx = document.getElementById('category-chart');
 
     if (categoryChart) {
@@ -558,8 +593,8 @@ function updateCategoryChart(data) {
     }
 
     const colors = [
-        '#4f46e5', '#06b6d4', '#10b981', '#f59e0b',
-        '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'
+        '#22c55e', '#06b6d4', '#f59e0b', '#ef4444',
+        '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'
     ];
 
     categoryChart = new Chart(ctx, {
@@ -589,13 +624,19 @@ function updateCategoryChart(data) {
 }
 
 function updateMonthChart(data) {
+    const isEmpty = !data || data.length === 0;
+    showChartEmptyState('month-chart', 'month-empty', isEmpty);
+    if (isEmpty) {
+        if (monthChart) { monthChart.destroy(); monthChart = null; }
+        return;
+    }
+
     const ctx = document.getElementById('month-chart');
 
     if (monthChart) {
         monthChart.destroy();
     }
 
-    // Reverse to show oldest to newest
     const reversedData = [...data].reverse();
 
     monthChart = new Chart(ctx, {
@@ -605,7 +646,7 @@ function updateMonthChart(data) {
             datasets: [{
                 label: 'Total Spent',
                 data: reversedData.map(d => d.total),
-                backgroundColor: '#4f46e5',
+                backgroundColor: '#22c55e',
                 borderRadius: 8
             }]
         },
@@ -643,14 +684,19 @@ function updateMonthChart(data) {
 
 function updateDayChart(data) {
     const ctx = document.getElementById('day-chart');
-
     if (!ctx) return;
+
+    const isEmpty = !data || data.length === 0;
+    showChartEmptyState('day-chart', 'day-empty', isEmpty);
+    if (isEmpty) {
+        if (dayChart) { dayChart.destroy(); dayChart = null; }
+        return;
+    }
 
     if (dayChart) {
         dayChart.destroy();
     }
 
-    // Reverse to show oldest to newest
     const reversedData = [...data].reverse();
 
     dayChart = new Chart(ctx, {
@@ -660,8 +706,8 @@ function updateDayChart(data) {
             datasets: [{
                 label: 'Total Spent',
                 data: reversedData.map(d => d.total),
-                borderColor: '#06b6d4',
-                backgroundColor: 'rgba(6, 182, 212, 0.2)',
+                borderColor: '#22c55e',
+                backgroundColor: 'rgba(34, 197, 94, 0.15)',
                 tension: 0.25,
                 fill: true,
                 pointRadius: 3,
@@ -700,6 +746,60 @@ function updateDayChart(data) {
     });
 }
 
+// AI Insights
+async function loadAIInsights() {
+    const btn = document.getElementById('ai-insights-btn');
+    const placeholder = document.getElementById('ai-insights-placeholder');
+    const loading = document.getElementById('ai-loading');
+    const content = document.getElementById('ai-insights-content');
+
+    btn.disabled = true;
+    placeholder.style.display = 'none';
+    content.style.display = 'none';
+    loading.style.display = 'flex';
+
+    try {
+        const response = await fetch('/api/ai-insights', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+        loading.style.display = 'none';
+
+        if (response.ok && data.insights) {
+            content.style.display = 'block';
+            typeText(content, data.insights);
+        } else {
+            content.style.display = 'block';
+            content.textContent = data.error || 'Unable to generate insights. Please try again.';
+        }
+    } catch (error) {
+        console.error('AI insights error:', error);
+        loading.style.display = 'none';
+        content.style.display = 'block';
+        content.textContent = 'An error occurred while generating insights.';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function typeText(element, text, speed) {
+    speed = speed || 12;
+    element.textContent = '';
+    let i = 0;
+
+    function type() {
+        if (i < text.length) {
+            element.textContent += text.charAt(i);
+            i++;
+            setTimeout(type, speed);
+        }
+    }
+
+    type();
+}
+
 // Export
 async function exportCSV() {
     try {
@@ -724,7 +824,6 @@ function formatMonth(monthString) {
 
 function formatDateForInput(dateString) {
     try {
-        // Try to parse various date formats
         const date = new Date(dateString);
         if (!isNaN(date.getTime())) {
             return date.toISOString().split('T')[0];
@@ -734,4 +833,3 @@ function formatDateForInput(dateString) {
     }
     return new Date().toISOString().split('T')[0];
 }
-

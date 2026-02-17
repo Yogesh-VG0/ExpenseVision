@@ -7,6 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginError = document.getElementById('login-error');
     const registerError = document.getElementById('register-error');
 
+    // Trigger staggered landing page animations
+    const animElements = document.querySelectorAll('.anim-fade-in');
+    animElements.forEach((el, index) => {
+        el.style.animationPlayState = 'running';
+    });
+
     // Tab switching
     tabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -15,6 +21,20 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update active tab
             tabButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+
+            // Update header text
+            const authHeader = document.querySelector('.auth-header');
+            if (authHeader) {
+                const h2 = authHeader.querySelector('h2');
+                const p = authHeader.querySelector('p');
+                if (tab === 'login') {
+                    if (h2) h2.textContent = 'Welcome Back';
+                    if (p) p.textContent = 'Sign in to manage your expenses';
+                } else {
+                    if (h2) h2.textContent = 'Create Account';
+                    if (p) p.textContent = 'Start tracking your expenses today';
+                }
+            }
 
             // Show corresponding form
             if (tab === 'login') {
@@ -108,4 +128,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-

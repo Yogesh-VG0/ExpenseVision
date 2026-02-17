@@ -3,56 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ExpenseVision - Login</title>
+    <title>ExpenseVision - Smart Expense Tracking</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="auth-container">
-        <div class="auth-card">
-            <div class="auth-header">
-                <h1>💰 ExpenseVision</h1>
-                <p>Smart Expense Tracking Made Simple</p>
+    <div class="landing">
+        <!-- Left: Info Panel -->
+        <div class="landing-info">
+            <div class="landing-info-inner">
+                <!-- Logo -->
+                <div class="landing-logo anim-fade-in">
+                    <svg class="landing-logo-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="56" height="56">
+                        <rect width="64" height="64" rx="14" fill="#0a0a0a"/>
+                        <path d="M20 14h24v36l-3-2-3 2-3-2-3 2-3-2-3 2-3-2-3 2z" fill="none" stroke="#22c55e" stroke-width="3" stroke-linejoin="round"/>
+                        <line x1="25" y1="22" x2="39" y2="22" stroke="#22c55e" stroke-width="2"/>
+                        <line x1="25" y1="28" x2="39" y2="28" stroke="#22c55e" stroke-width="2"/>
+                        <line x1="25" y1="34" x2="35" y2="34" stroke="#22c55e" stroke-width="2"/>
+                        <path d="M48 16l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" fill="#22c55e"/>
+                    </svg>
+                    <h1 class="landing-title">ExpenseVision</h1>
+                </div>
+
+                <p class="landing-tagline anim-fade-in stagger-1">
+                    Smart expense tracking with AI-powered receipt scanning, intelligent insights, and beautiful analytics.
+                </p>
+
+                <!-- Features -->
+                <div class="landing-features">
+                    <div class="landing-feature anim-fade-in stagger-2">
+                        <span class="feature-icon">📸</span>
+                        <div>
+                            <strong>Receipt OCR + AI</strong>
+                            <p>Scan receipts and let AI extract amounts, vendors, dates, and categories automatically.</p>
+                        </div>
+                    </div>
+                    <div class="landing-feature anim-fade-in stagger-3">
+                        <span class="feature-icon">🤖</span>
+                        <div>
+                            <strong>AI Spending Insights</strong>
+                            <p>Get personalized analysis of your spending patterns powered by DeepSeek R1.</p>
+                        </div>
+                    </div>
+                    <div class="landing-feature anim-fade-in stagger-4">
+                        <span class="feature-icon">📊</span>
+                        <div>
+                            <strong>Visual Analytics</strong>
+                            <p>Interactive charts for spending by category, monthly trends, and daily breakdowns.</p>
+                        </div>
+                    </div>
+                    <div class="landing-feature anim-fade-in stagger-5">
+                        <span class="feature-icon">🏷️</span>
+                        <div>
+                            <strong>Smart Categories</strong>
+                            <p>ML-powered auto-categorization that learns from your spending habits over time.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tech badges -->
+                <div class="landing-tech anim-fade-in stagger-5">
+                    <span class="tech-badge">Flask</span>
+                    <span class="tech-badge">Chart.js</span>
+                    <span class="tech-badge">Tesseract OCR</span>
+                    <span class="tech-badge">DeepSeek R1</span>
+                    <span class="tech-badge">PostgreSQL</span>
+                </div>
             </div>
+        </div>
 
-            <div class="auth-tabs">
-                <button class="tab-btn active" data-tab="login">Login</button>
-                <button class="tab-btn" data-tab="register">Register</button>
-            </div>
+        <!-- Right: Auth Panel -->
+        <div class="landing-auth">
+            <div class="auth-card anim-fade-in">
+                <div class="auth-header">
+                    <!-- Mobile-only logo (hidden on desktop since left panel shows it) -->
+                    <div class="auth-mobile-logo">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="40" height="40">
+                            <rect width="64" height="64" rx="14" fill="#0a0a0a"/>
+                            <path d="M20 14h24v36l-3-2-3 2-3-2-3 2-3-2-3 2-3-2-3 2z" fill="none" stroke="#22c55e" stroke-width="3" stroke-linejoin="round"/>
+                            <line x1="25" y1="22" x2="39" y2="22" stroke="#22c55e" stroke-width="2"/>
+                            <line x1="25" y1="28" x2="39" y2="28" stroke="#22c55e" stroke-width="2"/>
+                            <line x1="25" y1="34" x2="35" y2="34" stroke="#22c55e" stroke-width="2"/>
+                            <path d="M48 16l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" fill="#22c55e"/>
+                        </svg>
+                    </div>
+                    <h2>Welcome Back</h2>
+                    <p>Sign in to manage your expenses</p>
+                </div>
 
-            <div class="auth-content">
-                <!-- Login Form -->
-                <form id="login-form" class="auth-form active">
-                    <div class="form-group">
-                        <label for="login-username">Username</label>
-                        <input type="text" id="login-username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="login-password">Password</label>
-                        <input type="password" id="login-password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Login</button>
-                    <div class="error-message" id="login-error"></div>
-                </form>
+                <div class="auth-tabs">
+                    <button class="tab-btn active" data-tab="login">Login</button>
+                    <button class="tab-btn" data-tab="register">Register</button>
+                </div>
 
-                <!-- Register Form -->
-                <form id="register-form" class="auth-form">
-                    <div class="form-group">
-                        <label for="register-username">Username</label>
-                        <input type="text" id="register-username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-password">Password</label>
-                        <input type="password" id="register-password" required minlength="6">
-                        <small>At least 6 characters</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-confirm">Confirm Password</label>
-                        <input type="password" id="register-confirm" required minlength="6">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Create Account</button>
-                    <div class="error-message" id="register-error"></div>
-                </form>
+                <div class="auth-content">
+                    <!-- Login Form -->
+                    <form id="login-form" class="auth-form active">
+                        <div class="form-group">
+                            <label for="login-username">Username</label>
+                            <input type="text" id="login-username" placeholder="Enter your username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Password</label>
+                            <input type="password" id="login-password" placeholder="Enter your password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Sign In</button>
+                        <div class="error-message" id="login-error"></div>
+                    </form>
+
+                    <!-- Register Form -->
+                    <form id="register-form" class="auth-form">
+                        <div class="form-group">
+                            <label for="register-username">Username</label>
+                            <input type="text" id="register-username" placeholder="Choose a username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-password">Password</label>
+                            <input type="password" id="register-password" placeholder="Create a password" required minlength="6">
+                            <small>At least 6 characters</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-confirm">Confirm Password</label>
+                            <input type="password" id="register-confirm" placeholder="Confirm your password" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Create Account</button>
+                        <div class="error-message" id="register-error"></div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -60,4 +137,3 @@
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
 </html>
-

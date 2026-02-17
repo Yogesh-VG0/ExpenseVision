@@ -100,19 +100,58 @@
                     </div>
                 </div>
 
+                <!-- AI Insights -->
+                <div class="ai-insights-card">
+                    <div class="ai-insights-header">
+                        <h3>🤖 AI Spending Insights <span class="ai-badge">POWERED BY DEEPSEEK R1</span></h3>
+                        <button id="ai-insights-btn" class="btn-ai">✨ Get AI Insights</button>
+                    </div>
+                    <div class="ai-insights-body" id="ai-insights-body">
+                        <div class="ai-insights-placeholder" id="ai-insights-placeholder">
+                            <p>Click "Get AI Insights" to receive a personalized analysis of your spending patterns.</p>
+                        </div>
+                        <div class="ai-loading" id="ai-loading" style="display:none;">
+                            <div class="spinner-small"></div>
+                            <span>Analyzing your spending patterns...</span>
+                        </div>
+                        <div class="ai-insights-content" id="ai-insights-content" style="display:none;"></div>
+                    </div>
+                </div>
+
                 <!-- Charts -->
                 <div class="charts-grid">
                     <div class="chart-card">
                         <h3>Spending by Category</h3>
-                        <canvas id="category-chart"></canvas>
+                        <div class="chart-container">
+                            <canvas id="category-chart"></canvas>
+                            <div class="chart-empty-state" id="category-empty">
+                                <div class="empty-icon">📊</div>
+                                <div class="empty-title">No category data yet</div>
+                                <div class="empty-desc">Add your first expense to see spending by category.</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="chart-card">
                         <h3>Monthly Spending Trend</h3>
-                        <canvas id="month-chart"></canvas>
+                        <div class="chart-container">
+                            <canvas id="month-chart"></canvas>
+                            <div class="chart-empty-state" id="month-empty">
+                                <div class="empty-icon">📈</div>
+                                <div class="empty-title">No monthly data yet</div>
+                                <div class="empty-desc">Start tracking expenses to see monthly trends.</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="chart-card">
                         <h3>Daily Spending (last 30 days)</h3>
-                        <canvas id="day-chart"></canvas>
+                        <div class="chart-container">
+                            <canvas id="day-chart"></canvas>
+                            <div class="chart-empty-state" id="day-empty">
+                                <div class="empty-icon">📅</div>
+                                <div class="empty-title">No daily data yet</div>
+                                <div class="empty-desc">Your daily spending will appear here once you add expenses.</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -149,7 +188,14 @@
                         </thead>
                         <tbody id="expenses-tbody">
                             <tr>
-                                <td colspan="6" class="empty-state">No expenses found. Add your first expense!</td>
+                                <td colspan="6">
+                                    <div class="table-empty-state">
+                                        <div class="empty-icon">💸</div>
+                                        <div class="empty-title">No expenses yet</div>
+                                        <div class="empty-desc">Start tracking your spending by adding your first expense.</div>
+                                        <button class="btn btn-primary" onclick="switchView('add-expense')">➕ Add Expense</button>
+                                    </div>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
