@@ -4,6 +4,7 @@ import json
 import base64
 import threading
 import time
+import random
 from datetime import datetime
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -679,11 +680,34 @@ def healthz():
     """Health check for Render. Verifies DB connectivity."""
     try:
         db = get_db()
-        db.cursor().execute('SELECT 1')
+        cur = db.cursor()
+        cur.execute('SELECT 1')
+        cur.close()
         db.close()
         return '', 200
     except Exception:
         return '', 503
+
+
+@app.route('/warmup')
+def warmup():
+    """Warmup endpoint to prime DB and common query paths for faster first load."""
+    try:
+        db = get_db()
+        cur = db.cursor()
+        # Basic connectivity check
+        sql, params = _sql('SELECT 1')
+        cur.execute(sql, params)
+        # Prime a small, real query (categories) so the path is warm
+        sql, params = _sql('SELECT name FROM categories LIMIT 1')
+        cur.execute(sql, params)
+        cur.fetchall()
+        cur.close()
+        db.close()
+        return jsonify({'ok': True, 'ts': datetime.utcnow().isoformat()}), 200
+    except Exception as e:
+        app.logger.warning(f'warmup failed: {e}')
+        return jsonify({'ok': False}), 503
 
 
 @app.route('/register', methods=['POST'])
@@ -1319,11 +1343,24 @@ def _keep_alive():
     if not service_url:
         print('[keep-alive] RENDER_EXTERNAL_URL not set — self-ping disabled.')
         return
-    ping_url = f'{service_url}/healthz'
+    ping_url = f'{service_url}/warmup'
     interval = int(os.environ.get('KEEP_ALIVE_INTERVAL', 600))  # default 10 min
-    print(f'[keep-alive] Pinging {ping_url} every {interval}s')
+
+    # Immediate ping on boot so restarts are warmed quickly
+    print(f'[keep-alive] Immediate ping -> {ping_url}')
+    try:
+        resp = requests.get(ping_url, timeout=10)
+        print(f'[keep-alive] Ping {ping_url} -> {resp.status_code}')
+    except Exception as exc:
+        print(f'[keep-alive] Ping failed: {exc}')
+
+    next_time = time.time()
+    print(f'[keep-alive] Pinging {ping_url} every {interval}s (with small jitter)')
     while True:
-        time.sleep(interval)
+        # Schedule next ping based on interval to avoid drift, plus small random jitter
+        next_time += interval
+        sleep_for = max(0, next_time - time.time()) + random.uniform(0, 3)
+        time.sleep(sleep_for)
         try:
             resp = requests.get(ping_url, timeout=10)
             print(f'[keep-alive] Ping {ping_url} -> {resp.status_code}')
