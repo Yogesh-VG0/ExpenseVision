@@ -336,7 +336,7 @@ def parse_receipt_text(text):
     return result
 
 
-# OpenRouter API (DeepSeek R1): AI insights and enhanced receipt parsing
+# OpenRouter API: AI insights and enhanced receipt parsing
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'openai/gpt-oss-20b:free').strip()
 _fallback_models_env = os.environ.get(
@@ -425,7 +425,7 @@ def _call_openrouter(messages, max_tokens=2048):
 
             data = resp.json()
             content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
-            # DeepSeek R1 may include <think>...</think> reasoning; strip it for clean output
+            # Some reasoning models may include <think>...</think>; strip it for clean output
             if content and '<think>' in content and '</think>' in content:
                 content = content.split('</think>')[-1].strip()
             return content, None
@@ -445,7 +445,7 @@ def _call_openrouter(messages, max_tokens=2048):
 
 
 def _ai_parse_receipt(raw_text):
-    """Use DeepSeek R1 via OpenRouter to extract structured data from raw OCR text.
+    """Use OpenRouter to extract structured data from raw OCR text.
     Returns dict with amount, vendor, date, category, description or None on failure."""
     if not OPENROUTER_API_KEY or not raw_text or len(raw_text.strip()) < 5:
         return None
@@ -1106,7 +1106,7 @@ def ocr_receipt():
             text = extract_text_from_image(filepath)
             raw_text = text
 
-            # Try AI-enhanced parsing first (DeepSeek R1 via OpenRouter)
+            # Try AI-enhanced parsing first (OpenRouter)
             ai_parsed = _ai_parse_receipt(text)
             if ai_parsed:
                 parsed = {
