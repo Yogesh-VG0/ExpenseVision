@@ -370,7 +370,7 @@ def _sanitize_insight_text(text):
 def _call_openrouter(messages, max_tokens=2048):
     """Call OpenRouter API with configured model (and optional fallbacks).
     Returns (content, None) on success, (None, error_kind) on failure.
-    error_kind: 'rate_limit' (429), 'timeout', 'model_unavailable', or 'unavailable'.
+    error_kind: 'rate_limit' (429), 'timeout', 'model_unavailable', 'policy_blocked', or 'unavailable'.
     """
     if not OPENROUTER_API_KEY:
         return None, 'unavailable'
@@ -404,6 +404,11 @@ def _call_openrouter(messages, max_tokens=2048):
                 # Often means model slug is no longer available for this account/tier.
                 saw_model_unavailable = True
                 body = (resp.text or '')[:500]
+                if 'data policy' in body.lower() and 'free model publication' in body.lower():
+                    app.logger.warning(
+                        f'OpenRouter data-policy restriction for model="{model_name}": {body}'
+                    )
+                    return None, 'policy_blocked'
                 app.logger.warning(
                     f'OpenRouter model not available (404) for model="{model_name}": {body}'
                 )
@@ -1200,14 +1205,12 @@ Data: Total AED {total:.2f} in {count} transactions. By category: {cat_summary}.
 Write 2 or 3 short paragraphs only. First: what stands out about their spending (categories, totals). Second: one or two simple, actionable tips. Third: one encouraging line. Use their numbers. Sound warm and concise, like a quick note from a helpful friend. Output plain text only—no ** or # or * or numbered items."""
 
         result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
-        if not result and err_kind == 'rate_limit':
-            app.logger.info('OpenRouter 429, retrying after 60s')
-            time.sleep(60)
-            result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
         if result:
             text = _sanitize_insight_text(result)
         elif err_kind == 'rate_limit':
-            text = 'AI rate limit reached. OpenRouter free tier allows 20 requests per minute and 50 per day. The app will retry once after a minute; if you still see this, wait a few minutes and try again.'
+            text = 'AI rate limit reached. OpenRouter free tier allows 20 requests per minute and 50 per day. Please wait a few minutes, then try again.'
+        elif err_kind == 'policy_blocked':
+            text = 'OpenRouter account settings are blocking free models (data policy: Free model publication). Update your privacy setting at https://openrouter.ai/settings/privacy or use a non-free model in OPENROUTER_MODEL.'
         elif err_kind == 'model_unavailable':
             text = 'AI model is temporarily unavailable on the current OpenRouter tier. Please try again shortly, or update OPENROUTER_MODEL to an available model.'
         elif err_kind == 'timeout':
