@@ -1198,11 +1198,24 @@ def _run_ai_insights_job(user_id):
             f"- {r.get('date', '')}: {r.get('category', '')} - AED {float(r.get('amount', 0)):.2f} ({r.get('vendor') or r.get('description') or 'N/A'})"
             for r in rows[:30]
         ])
-        prompt = f"""You are a friendly finance coach. In plain, readable text (no markdown, no bold, no bullets, no numbered lists), give a short spending summary the user will enjoy reading in an app card.
+        prompt = f"""You are a practical personal finance coach writing insights for an expense-tracking app card.
 
-Data: Total AED {total:.2f} in {count} transactions. By category: {cat_summary}. Recent transactions: {recent_items}
+Use ONLY the data provided below. Do not invent categories, transactions, dates, or motives.
 
-Write 2 or 3 short paragraphs only. First: what stands out about their spending (categories, totals). Second: one or two simple, actionable tips. Third: one encouraging line. Use their numbers. Sound warm and concise, like a quick note from a helpful friend. Output plain text only—no ** or # or * or numbered items."""
+Data:
+- Total spent: AED {total:.2f}
+- Transaction count: {count}
+- Category totals: {cat_summary}
+- Recent transactions: {recent_items}
+
+Output rules:
+1) Return plain text only (no markdown, no bullets, no numbered lists).
+2) Write exactly 3 short paragraphs.
+3) Paragraph 1: concise spending summary with the main pattern and biggest category/cost drivers.
+4) Paragraph 2: 1-2 specific, realistic actions tied to the user's numbers/categories.
+5) Paragraph 3: short positive encouragement line.
+6) Keep it concise, human, and neutral (avoid sounding judgmental).
+7) Use AED currency formatting and include concrete numbers from the data."""
 
         result, err_kind = _call_openrouter([{'role': 'user', 'content': prompt}])
         if result:
