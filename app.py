@@ -338,13 +338,14 @@ def parse_receipt_text(text):
 
 # OpenRouter API (DeepSeek R1): AI insights and enhanced receipt parsing
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
-OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'deepseek/deepseek-r1:free').strip()
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'openai/gpt-oss-20b:free').strip()
 _fallback_models_env = os.environ.get(
     'OPENROUTER_FALLBACK_MODELS',
-    'deepseek/deepseek-r1:free,meta-llama/llama-3.3-70b-instruct:free,openai/gpt-oss-20b:free,google/gemma-3-27b-it:free'
+    'meta-llama/llama-3.3-70b-instruct:free,google/gemma-3-27b-it:free,qwen/qwen3-4b:free,mistralai/mistral-small-3.1-24b-instruct:free'
 )
 OPENROUTER_FALLBACK_MODELS = [m.strip() for m in _fallback_models_env.split(',') if m.strip()]
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+AI_RATE_LIMIT_COOLDOWN_SECONDS = int(os.environ.get('AI_RATE_LIMIT_COOLDOWN_SECONDS', '300'))
 
 
 def _sanitize_insight_text(text):
@@ -1282,7 +1283,7 @@ def ai_insights():
         user_id = session['user_id']
         db = get_db()
         cursor = db.cursor()
-        sql, p = _sql('SELECT status FROM ai_insights WHERE user_id = ?', (user_id,))
+        sql, p = _sql('SELECT status, insights_text, generated_at FROM ai_insights WHERE user_id = ?', (user_id,))
         cursor.execute(sql, p)
         row = cursor.fetchone()
         if row:
@@ -1293,6 +1294,33 @@ def ai_insights():
                     'status': 'generating',
                     'message': 'AI is already analyzing your spending. The page will update automatically in about 60–90 seconds.'
                 })
+
+            # If we just hit rate limits, avoid re-triggering immediate background jobs.
+            insights_text = row['insights_text'] if hasattr(row, 'keys') else row[1]
+            generated_at = row['generated_at'] if hasattr(row, 'keys') else row[2]
+            if (current_status == 'ready'
+                    and isinstance(insights_text, str)
+                    and insights_text.startswith('AI rate limit reached.')):
+                generated_dt = None
+                if hasattr(generated_at, 'strftime'):
+                    generated_dt = generated_at
+                elif isinstance(generated_at, str) and generated_at.strip():
+                    try:
+                        generated_dt = datetime.strptime(generated_at[:19], '%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        generated_dt = None
+
+                if generated_dt:
+                    elapsed = (datetime.utcnow() - generated_dt).total_seconds()
+                    if elapsed < AI_RATE_LIMIT_COOLDOWN_SECONDS:
+                        retry_after = int(max(1, AI_RATE_LIMIT_COOLDOWN_SECONDS - elapsed))
+                        db.close()
+                        return jsonify({
+                            'status': 'ready',
+                            'insights': insights_text,
+                            'retry_after_seconds': retry_after,
+                            'message': f'Rate limit cooldown active. Try again in about {retry_after} seconds.'
+                        })
 
         if USE_POSTGRES:
             cursor.execute('''
