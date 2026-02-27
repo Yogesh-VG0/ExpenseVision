@@ -338,7 +338,12 @@ def parse_receipt_text(text):
 
 # OpenRouter API (DeepSeek R1): AI insights and enhanced receipt parsing
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
-OPENROUTER_MODEL = 'deepseek/deepseek-r1-0528:free'
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'deepseek/deepseek-r1:free').strip()
+_fallback_models_env = os.environ.get(
+    'OPENROUTER_FALLBACK_MODELS',
+    'deepseek/deepseek-r1:free,meta-llama/llama-3.3-70b-instruct:free,openai/gpt-oss-20b:free,google/gemma-3-27b-it:free'
+)
+OPENROUTER_FALLBACK_MODELS = [m.strip() for m in _fallback_models_env.split(',') if m.strip()]
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 
@@ -362,34 +367,66 @@ def _sanitize_insight_text(text):
 
 
 def _call_openrouter(messages, max_tokens=2048):
-    """Call OpenRouter API with DeepSeek R1 model.
+    """Call OpenRouter API with configured model (and optional fallbacks).
     Returns (content, None) on success, (None, error_kind) on failure.
-    error_kind: 'rate_limit' (429), 'timeout', or 'unavailable'.
+    error_kind: 'rate_limit' (429), 'timeout', 'model_unavailable', or 'unavailable'.
     """
     if not OPENROUTER_API_KEY:
         return None, 'unavailable'
+
+    # Try primary model first, then configured fallbacks.
+    model_candidates = [OPENROUTER_MODEL] + [m for m in OPENROUTER_FALLBACK_MODELS if m != OPENROUTER_MODEL]
+    saw_model_unavailable = False
+
     try:
         headers = {
             'Authorization': f'Bearer {OPENROUTER_API_KEY}',
             'Content-Type': 'application/json',
+            # Optional but recommended by OpenRouter for better tracing.
+            'HTTP-Referer': os.environ.get('RENDER_EXTERNAL_URL', '').strip() or 'https://expensevision.app',
+            'X-OpenRouter-Title': os.environ.get('OPENROUTER_APP_NAME', 'ExpenseVision').strip(),
         }
-        payload = {
-            'model': OPENROUTER_MODEL,
-            'messages': messages,
-            'max_tokens': max_tokens,
-        }
-        # 85s so we return 504 before Gunicorn worker timeout (120s)
-        resp = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=85)
-        if resp.status_code == 429:
-            app.logger.warning('OpenRouter rate limit (429)')
-            return None, 'rate_limit'
-        resp.raise_for_status()
-        data = resp.json()
-        content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
-        # DeepSeek R1 may include <think>...</think> reasoning; strip it for clean output
-        if content and '<think>' in content and '</think>' in content:
-            content = content.split('</think>')[-1].strip()
-        return content, None
+        for model_name in model_candidates:
+            payload = {
+                'model': model_name,
+                'messages': messages,
+                'max_tokens': max_tokens,
+            }
+            # 85s so we return before Gunicorn worker timeout (120s)
+            resp = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=85)
+
+            if resp.status_code == 429:
+                app.logger.warning('OpenRouter rate limit (429)')
+                return None, 'rate_limit'
+
+            if resp.status_code == 404:
+                # Often means model slug is no longer available for this account/tier.
+                saw_model_unavailable = True
+                body = (resp.text or '')[:500]
+                app.logger.warning(
+                    f'OpenRouter model not available (404) for model="{model_name}": {body}'
+                )
+                continue
+
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError:
+                body = (resp.text or '')[:500]
+                app.logger.error(
+                    f'OpenRouter API HTTP error ({resp.status_code}) for model="{model_name}": {body}'
+                )
+                return None, 'unavailable'
+
+            data = resp.json()
+            content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+            # DeepSeek R1 may include <think>...</think> reasoning; strip it for clean output
+            if content and '<think>' in content and '</think>' in content:
+                content = content.split('</think>')[-1].strip()
+            return content, None
+
+        if saw_model_unavailable:
+            return None, 'model_unavailable'
+        return None, 'unavailable'
     except requests.exceptions.Timeout:
         app.logger.error('OpenRouter API timeout')
         return None, 'timeout'
@@ -1170,6 +1207,8 @@ Write 2 or 3 short paragraphs only. First: what stands out about their spending 
             text = _sanitize_insight_text(result)
         elif err_kind == 'rate_limit':
             text = 'AI rate limit reached. OpenRouter free tier allows 20 requests per minute and 50 per day. The app will retry once after a minute; if you still see this, wait a few minutes and try again.'
+        elif err_kind == 'model_unavailable':
+            text = 'AI model is temporarily unavailable on the current OpenRouter tier. Please try again shortly, or update OPENROUTER_MODEL to an available model.'
         elif err_kind == 'timeout':
             text = 'AI is taking too long to respond. Please try again.'
         else:
