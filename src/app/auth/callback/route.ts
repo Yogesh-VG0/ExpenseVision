@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 import { safeRedirectPath } from "@/lib/utils";
 
-function getOrigin(request: Request): string {
-  const url = new URL(request.url);
+function getOrigin(request: NextRequest): string {
   // Behind a reverse proxy the raw origin can be an internal address
   // (e.g. 0.0.0.0:10000). Use x-forwarded-host when available.
   const forwardedHost = request.headers.get("x-forwarded-host");
@@ -11,20 +10,40 @@ function getOrigin(request: Request): string {
     const proto = request.headers.get("x-forwarded-proto") || "https";
     return `${proto}://${forwardedHost}`;
   }
-  return url.origin;
+  return request.nextUrl.origin;
 }
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
+export async function GET(request: NextRequest) {
   const origin = getOrigin(request);
-  const code = url.searchParams.get("code");
-  const next = safeRedirectPath(url.searchParams.get("next") ?? "/dashboard");
+  const code = request.nextUrl.searchParams.get("code");
+  const next = safeRedirectPath(
+    request.nextUrl.searchParams.get("next") ?? "/dashboard"
+  );
 
   if (code) {
-    const supabase = await createClient();
+    // Create the redirect response FIRST so cookies are set directly on it
+    const response = NextResponse.redirect(`${origin}${next}`);
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
+            });
+          },
+        },
+      }
+    );
+
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return response;
     }
   }
 
