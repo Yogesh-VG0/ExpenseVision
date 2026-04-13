@@ -45,7 +45,12 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return response;
     }
+    // Temporarily expose the error for debugging
+    const errorMsg = encodeURIComponent(error.message || "unknown");
+    return NextResponse.redirect(
+      `${origin}/login?error=auth&detail=${errorMsg}`
+    );
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  return NextResponse.redirect(`${origin}/login?error=auth&detail=no_code`);
 }
