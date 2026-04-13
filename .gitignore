@@ -1,2 +1,10 @@
-# SQLite DB (local dev)
-*.db
+# Agent / IDE config
+.agents/
+.claude/
+.mcp.json
+.vscode/
+skills-lock.json
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,322 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* UAE Dirham custom font */
+@font-face {
+  font-family: 'UAESymbol';
+  src: url('/uae-symbol.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-gradient: gradient 8s ease infinite;
+  --animate-fade-up: fade-up 0.5s ease-out both;
+  --animate-fade-down: fade-down 0.5s ease-out both;
+  --animate-scale-in: scale-in 0.3s ease-out both;
+  --animate-slide-left: slide-left 0.4s ease-out both;
+  --animate-slide-right: slide-right 0.4s ease-out both;
+}
+
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(222 47% 11%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(222 47% 11%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(222 47% 11%);
+  --primary: hsl(43 96% 56%);
+  --primary-foreground: hsl(222 47% 11%);
+  --secondary: hsl(210 40% 96%);
+  --secondary-foreground: hsl(222 47% 11%);
+  --muted: hsl(210 40% 96%);
+  --muted-foreground: hsl(215 16% 47%);
+  --accent: hsl(263 70% 50%);
+  --accent-foreground: hsl(0 0% 98%);
+  --destructive: hsl(0 84% 60%);
+  --border: hsl(214 32% 91%);
+  --input: hsl(214 32% 91%);
+  --ring: hsl(43 96% 56%);
+  --chart-1: hsl(43 96% 56%);
+  --chart-2: hsl(263 70% 50%);
+  --chart-3: hsl(173 58% 39%);
+  --chart-4: hsl(12 76% 61%);
+  --chart-5: hsl(197 37% 24%);
+  --radius: 0.75rem;
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(222 47% 11%);
+  --sidebar-primary: hsl(43 96% 56%);
+  --sidebar-primary-foreground: hsl(222 47% 11%);
+  --sidebar-accent: hsl(210 40% 96%);
+  --sidebar-accent-foreground: hsl(222 47% 11%);
+  --sidebar-border: hsl(214 32% 91%);
+  --sidebar-ring: hsl(43 96% 56%);
+}
+
+.dark {
+  --background: hsl(0 0% 4%);
+  --foreground: hsl(0 0% 98%);
+  --card: hsl(0 0% 7%);
+  --card-foreground: hsl(0 0% 98%);
+  --popover: hsl(0 0% 7%);
+  --popover-foreground: hsl(0 0% 98%);
+  --primary: hsl(43 96% 56%);
+  --primary-foreground: hsl(0 0% 4%);
+  --secondary: hsl(0 0% 10%);
+  --secondary-foreground: hsl(0 0% 98%);
+  --muted: hsl(0 0% 10%);
+  --muted-foreground: hsl(0 0% 64%);
+  --accent: hsl(263 70% 50%);
+  --accent-foreground: hsl(0 0% 98%);
+  --destructive: hsl(0 63% 31%);
+  --border: hsl(0 0% 16%);
+  --input: hsl(0 0% 16%);
+  --ring: hsl(43 96% 56%);
+  --chart-1: hsl(43 96% 56%);
+  --chart-2: hsl(263 70% 50%);
+  --chart-3: hsl(173 58% 39%);
+  --chart-4: hsl(12 76% 61%);
+  --chart-5: hsl(197 37% 24%);
+  --sidebar: hsl(0 0% 4%);
+  --sidebar-foreground: hsl(0 0% 98%);
+  --sidebar-primary: hsl(43 96% 56%);
+  --sidebar-primary-foreground: hsl(0 0% 4%);
+  --sidebar-accent: hsl(0 0% 10%);
+  --sidebar-accent-foreground: hsl(0 0% 98%);
+  --sidebar-border: hsl(0 0% 16%);
+  --sidebar-ring: hsl(43 96% 56%);
+}
+
+/* ---- Animation keyframes ---- */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.02); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes gradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-down {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-left {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-right {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes border-glow {
+  0%, 100% { border-color: hsl(43 96% 56% / 0.2); }
+  50% { border-color: hsl(43 96% 56% / 0.5); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Utility classes for staggered animations ---- */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 200ms; }
+.stagger-4 { animation-delay: 300ms; }
+.stagger-5 { animation-delay: 400ms; }
+.stagger-6 { animation-delay: 500ms; }
+.stagger-7 { animation-delay: 600ms; }
+.stagger-8 { animation-delay: 700ms; }
+
+/* ---- Glassmorphism utility ---- */
+.glass {
+  background: color-mix(in srgb, var(--card) 75%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.glass-strong {
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+/* ---- Gradient text helper ---- */
+.text-gradient {
+  background: linear-gradient(135deg, hsl(43 96% 56%), hsl(25 95% 53%), hsl(350 89% 60%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ---- Animated gradient background ---- */
+.bg-animated-gradient {
+  background: linear-gradient(-45deg, 
+    var(--background), 
+    var(--card), 
+    var(--background),
+    var(--card)
+  );
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+/* ---- Grid pattern overlay (theme-aware) ---- */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(color-mix(in srgb, var(--foreground) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--foreground) 3%, transparent) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* ---- Shimmer loading effect ---- */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 25%,
+    color-mix(in srgb, var(--muted-foreground) 10%, transparent) 50%,
+    var(--muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ---- UAE Dirham symbol font ---- */
+[data-currency="AED"] {
+  font-family: 'UAESymbol', var(--font-sans), system-ui, sans-serif;
+}
+
+/* ---- Glow effects ---- */
+.glow-primary {
+  box-shadow: 0 0 20px hsl(43 96% 56% / 0.15),
+              0 0 60px hsl(43 96% 56% / 0.05);
+}
+
+.glow-accent {
+  box-shadow: 0 0 20px hsl(263 70% 50% / 0.15),
+              0 0 60px hsl(263 70% 50% / 0.05);
+}
+
+/* ---- Smooth scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 20%, transparent);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply scroll-smooth font-sans;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: color-mix(in srgb, var(--muted-foreground) 60%, transparent);
+    font-style: italic;
+  }
+}

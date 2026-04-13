@@ -1,0 +1,54 @@
+# ExpenseVision
+
+> AI-powered expense tracking with smart receipt scanning, budget management, and financial insights.
+
+## About
+
+ExpenseVision is a modern personal finance app built with Next.js, Supabase, and AI-powered receipt scanning. It helps users track expenses, manage budgets, scan receipts with OCR, and get AI-generated financial insights.
+
+## Pages
+
+- [Home](https://expensevision.tech): Landing page with features overview, testimonials, and demo access
+- [Login](https://expensevision.tech/login): Sign in to your account
+- [Sign Up](https://expensevision.tech/signup): Create a new account
+- [Forgot Password](https://expensevision.tech/forgot-password): Reset your password
+- [Dashboard](https://expensevision.tech/dashboard): Overview of spending, budgets, and recent activity
+- [Expenses](https://expensevision.tech/expenses): Add, edit, and manage all expenses
+- [Budgets](https://expensevision.tech/budgets): Set and track monthly budgets by category
+- [Receipts](https://expensevision.tech/receipts): Scan receipts with AI-powered OCR
+- [AI Insights](https://expensevision.tech/insights): AI-generated spending analysis and savings tips
+- [Settings](https://expensevision.tech/settings): Profile, security, currency, and data preferences
+- [Demo](https://expensevision.tech/demo): Try the app with sample data — no account required
+
+## Features
+
+- **AI Receipt Scanning**: Upload receipt photos and extract merchant, amount, date, category, and line items automatically using multimodal AI
+- **Smart Budget Tracking**: Set monthly budgets per category with real-time progress tracking and alerts
+- **AI Financial Insights**: Get personalized spending summaries, savings tips, budget alerts, and trend analysis
+- **Multi-Currency Support**: USD, EUR, GBP, INR, JPY, AED (with official UAE Dirham symbol), CAD, AUD, SGD
+- **Dark/Light/System Theme**: Full theme support with glassmorphism design
+- **Secure by Design**: Supabase Auth with Row Level Security, rate limiting, and security headers
+
+## Tech Stack
+
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS v4
+- Supabase (Auth, Database, Storage)
+- Google Gemini API via OpenRouter (OCR + AI Insights)
+- Upstash Redis (Rate Limiting)
+- shadcn/ui with @base-ui/react
+- Recharts, Lucide React, date-fns, zod, sonner
+
+## API
+
+- `POST /api/expenses` — Create expense
+- `GET /api/expenses` — List user expenses
+- `PATCH /api/expenses/[id]` — Update expense
+- `DELETE /api/expenses/[id]` — Delete expense
+- `POST /api/budgets` — Create budget
+- `GET /api/budgets` — List user budgets
+- `DELETE /api/budgets/[id]` — Delete budget
+- `GET /api/analytics` — Spending analytics
+- `POST /api/ocr` — Scan receipt image (multipart/form-data)
+- `POST /api/ai-insights` — Generate AI financial insights
