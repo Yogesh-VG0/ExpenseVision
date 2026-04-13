@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -233,20 +234,26 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
 
             {/* Date range */}
             <div className="flex gap-2">
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="bg-muted/30 border-border"
-                placeholder="From"
-              />
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="bg-muted/30 border-border"
-                placeholder="To"
-              />
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="date-from" className="text-xs text-muted-foreground">From</Label>
+                <Input
+                  id="date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="bg-muted/30 border-border"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="date-to" className="text-xs text-muted-foreground">To</Label>
+                <Input
+                  id="date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="bg-muted/30 border-border"
+                />
+              </div>
             </div>
 
             {/* Sort */}

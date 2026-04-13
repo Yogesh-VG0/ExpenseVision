@@ -137,8 +137,8 @@ export function Navbar() {
             </div>
           ) : (
             <>
-              <Button variant="ghost" render={<Link href="/login" />}>
-                Sign In
+              <Button variant="ghost" render={<Link href="/signup" />}>
+                Get Started
               </Button>
               <Button
                 render={<Link href="/demo" />}
@@ -192,8 +192,8 @@ export function Navbar() {
                 </>
               ) : (
                 <>
-                  <Button variant="outline" className="w-full" render={<Link href="/login" onClick={() => setOpen(false)} />}>
-                    Sign In
+                  <Button variant="outline" className="w-full" render={<Link href="/signup" onClick={() => setOpen(false)} />}>
+                    Get Started
                   </Button>
                   <Button className="w-full" render={<Link href="/demo" onClick={() => setOpen(false)} />}>
                     Try Demo

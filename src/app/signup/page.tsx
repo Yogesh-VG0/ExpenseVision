@@ -270,12 +270,16 @@ export default function SignUpPage() {
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3">
-          <p className="text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link href="/login" className="font-medium text-primary hover:underline">
-              Sign in
-            </Link>
-          </p>
+          <div className="w-full rounded-lg border border-border/50 bg-muted/30 p-3 text-center">
+            <p className="text-sm text-muted-foreground">Already have an account?</p>
+            <Button
+              variant="link"
+              className="mt-0.5 h-auto p-0 text-sm font-semibold text-primary"
+              render={<Link href="/login" />}
+            >
+              Log in instead
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </div>

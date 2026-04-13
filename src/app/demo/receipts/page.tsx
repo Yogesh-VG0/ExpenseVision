@@ -10,6 +10,16 @@ import {
   Receipt,
   Sparkles,
   Eye,
+  UtensilsCrossed,
+  Car,
+  ShoppingCart,
+  Film,
+  Heart,
+  GraduationCap,
+  Plane,
+  Apple,
+  Package,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +40,19 @@ const DEMO_TOAST_DESC = "Create a free account to use AI receipt scanning.";
 function showDemoToast() {
   toast(DEMO_TOAST_TITLE, { description: DEMO_TOAST_DESC });
 }
+
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  "Food & Dining": UtensilsCrossed,
+  "Transportation": Car,
+  "Shopping": ShoppingCart,
+  "Entertainment": Film,
+  "Bills & Utilities": Zap,
+  "Healthcare": Heart,
+  "Education": GraduationCap,
+  "Travel": Plane,
+  "Groceries": Apple,
+  "Other": Package,
+};
 
 // Simulate some "scanned" receipts from demo data
 const DEMO_RECEIPTS = DEMO_EXPENSES.slice(0, 8).map((e, i) => ({
@@ -148,6 +171,7 @@ export default function DemoReceiptsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {DEMO_RECEIPTS.map((receipt) => {
             const categoryColor = CATEGORY_COLORS[receipt.category] || "#64748B";
+            const CategoryIcon = CATEGORY_ICONS[receipt.category] || FileText;
             return (
               <Card
                 key={receipt.id}
@@ -155,9 +179,12 @@ export default function DemoReceiptsPage() {
                 onClick={() => setSelectedReceipt(receipt)}
               >
                 <CardContent className="p-5">
-                  {/* Mock receipt thumbnail */}
-                  <div className="mb-3 flex h-24 items-center justify-center rounded-lg bg-gradient-to-br from-white/5 to-white/[0.02] border border-border/50">
-                    <FileText className="h-10 w-10 text-muted-foreground/40" />
+                  {/* Category-specific receipt thumbnail */}
+                  <div
+                    className="mb-3 flex h-24 items-center justify-center rounded-lg border border-border/50 transition-colors duration-300 group-hover/card:border-primary/20"
+                    style={{ background: `linear-gradient(135deg, ${categoryColor}15, ${categoryColor}05)` }}
+                  >
+                    <CategoryIcon className="h-10 w-10" style={{ color: `${categoryColor}99` }} />
                   </div>
 
                   <div className="space-y-2">

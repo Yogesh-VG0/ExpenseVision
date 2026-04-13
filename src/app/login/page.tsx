@@ -128,7 +128,7 @@ function LoginForm() {
           </Link>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
           <CardDescription>
-            Sign in to your account to continue
+            Log in to your account to continue
           </CardDescription>
         </CardHeader>
 
@@ -230,22 +230,22 @@ function LoginForm() {
               disabled={loading}
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign In
+              Log In
             </Button>
           </form>
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3">
-          <p className="text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="font-medium text-primary hover:underline">
-              Sign up
-            </Link>
-          </p>
-
-          <Button variant="outline" className="w-full" render={<Link href="/demo" />}>
-            Try the Demo Instead
-          </Button>
+          <div className="w-full rounded-lg border border-border/50 bg-muted/30 p-3 text-center">
+            <p className="text-sm text-muted-foreground">New to ExpenseVision?</p>
+            <Button
+              variant="link"
+              className="mt-0.5 h-auto p-0 text-sm font-semibold text-primary"
+              render={<Link href="/signup" />}
+            >
+              Create a free account
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </div>

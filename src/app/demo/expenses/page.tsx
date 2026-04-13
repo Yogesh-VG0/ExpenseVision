@@ -36,6 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
 import { CURRENCY_FORMATTER, DATE_FORMATTER, CATEGORY_COLORS } from "@/lib/constants";
 import { CATEGORIES } from "@/lib/types";
 import { DEMO_EXPENSES } from "@/lib/demo-data";
@@ -156,20 +157,26 @@ export default function DemoExpensesPage() {
             </Select>
 
             <div className="flex gap-2">
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="bg-muted/30 border-border/50"
-                placeholder="From"
-              />
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="bg-muted/30 border-border/50"
-                placeholder="To"
-              />
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="demo-date-from" className="text-xs text-muted-foreground">From</Label>
+                <Input
+                  id="demo-date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="bg-muted/30 border-border/50"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="demo-date-to" className="text-xs text-muted-foreground">To</Label>
+                <Input
+                  id="demo-date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="bg-muted/30 border-border/50"
+                />
+              </div>
             </div>
 
             <Select value={sort} onValueChange={(v) => v && setSort(v as SortOption)}>
