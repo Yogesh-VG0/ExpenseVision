@@ -50,6 +50,7 @@ export interface ParsedEmailReceipt {
 export function parseEmailReceipt(
   _payload: EmailReceiptPayload
 ): ParsedEmailReceipt {
+  void _payload;
   // TODO: Implement actual parsing logic
   // See docs/email-forwarding-architecture.md for the full plan
   throw new Error(

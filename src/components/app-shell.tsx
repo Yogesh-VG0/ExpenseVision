@@ -69,6 +69,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   }, [isDemo]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchUnreadCount();
     // Poll every 60s for new notifications
     const interval = setInterval(() => void fetchUnreadCount(), 60_000);
