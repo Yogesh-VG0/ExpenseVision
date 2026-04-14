@@ -61,6 +61,60 @@ The installed-app receipt flow now also supports direct sharing into ExpenseVisi
 - duplicate-save protection for already-linked shared receipt paths
 - subtle installed-app education explaining how direct receipt sharing works and when to fall back to capture mode
 
+## Phase D Offline Resilience Included
+
+The PWA integrates an offline-first architecture for expense creation:
+
+- IndexedDB-backed offline queue for pending expense uploads
+- Service Worker Background Sync support to automatically upload expenses when network returns
+- In-app `PendingQueuePanel` to manage and manually retry queued uploads
+- API Idempotency keys to prevent duplicate records if a request is retried after a successful but unacknowledged insert
+
+## Phase E Notifications & Alerts Included
+
+A robust, user-configurable notification system keeps budgets on track:
+
+- VAPID Push Subscription capabilities for opt-in browser/OS push notifications
+- Automatic Budget Alerts triggered at 80% and 100% of monthly spending limits
+- Weekly summary report generation
+- In-app notification center (`/notifications`) with unread badges and mark-as-read functionality
+- Persistent user notification preferences in the Supabase `profiles` table
+
+## Phase F Data Quality Included
+
+Data ingest is now cleaner and warns about likely duplicates:
+
+- Strong **merchant normalization** using 80+ known variants and noise-suffix stripping engine
+- **Duplicate detection** scoring based on proximity of vendor name, amount, and date (with confidence levels)
+- Context-aware **category suggestions** leveraging both merchant maps and fallback OCR keywords
+- Interactive `DuplicateWarningDialog` component forcing explicit review before saving probable duplicates
+
+## Phase G CSV Import Included
+
+Bulk transaction intake supports easy onboarding:
+
+- A dedicated `/imports` route housing a 5-step `CSVImportWizard`
+- Robust `csv-parser` mapping engine that auto-detects column headers (Date, Amount, Category, Vendor)
+- Client-side validation stripping currency symbols and standardizing US/ISO date formats
+- Batch creation seamlessly using idempotency keys
+- *Email Receipt Architecture document included in `docs/` for future webhook implementation*
+
+## Phase H PWA Polish Included
+
+Deep OS integration through advanced manifest capabilities:
+
+- `file_handlers` support enabling users to open image/PDF files directly into the ExpenseVision PWA on supported desktop OSs
+- `launchQueue` consumption in the React application shell for seamless file routing
+- Pre-configured Web App shortcuts
+
+## Phase I Testing & E2E framework
+
+Test coverage and pipelines have been significantly expanded:
+
+- 69 deterministic unit tests across 11 test files covering offline mechanics, duplicate detection, string normalization, and more
+- Clean strict-mode TypeScript baseline (`tsc --noEmit`)
+- Complete Playwright configuration for E2E user flow tests (`e2e/happy-path.spec.ts`)
+
 ## Local Setup
 
 1. Install dependencies.
@@ -73,9 +127,11 @@ npm install
 
 3. Run the Supabase SQL migrations in `supabase/migrations/`.
 
-4. Create a private `receipts` storage bucket in Supabase.
+4. Generate VAPID keys for local Push Notification testing (`npx web-push generate-vapid-keys`) and add them to `.env.local`.
 
-5. Start the dev server.
+5. Create a private `receipts` storage bucket in Supabase.
+
+6. Start the dev server.
 
 ```bash
 npm run dev
@@ -111,6 +167,9 @@ Apply the SQL migrations in order:
 - `001_initial_schema.sql`
 - `002_align_categories.sql`
 - `003_add_profiles_insert_policy.sql`
+- `004_add_idempotency_key.sql`
+- `005_notifications_table.sql`
+- `006_push_subscriptions.sql`
 
 The app expects a private `receipts` bucket with storage policies that let authenticated users insert, read, and delete files inside their own folder.
 
