@@ -204,10 +204,11 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
 
       {/* Filters */}
       <Card className="border border-border bg-card/80 backdrop-blur-md">
-        <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="pt-6 space-y-3">
+          {/* Row 1: Search + Category + Sort */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {/* Search */}
-            <div className="relative">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
                 placeholder="Search vendor, description…"
@@ -219,7 +220,7 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
 
             {/* Category */}
             <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v ?? "all")}>
-              <SelectTrigger className="bg-muted/30 border-border">
+              <SelectTrigger className="bg-muted/30 border-border w-full sm:w-[160px] shrink-0">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -232,36 +233,12 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
               </SelectContent>
             </Select>
 
-            {/* Date range */}
-            <div className="flex gap-2">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="date-from" className="text-xs text-muted-foreground">From</Label>
-                <Input
-                  id="date-from"
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="bg-muted/30 border-border"
-                />
-              </div>
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="date-to" className="text-xs text-muted-foreground">To</Label>
-                <Input
-                  id="date-to"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="bg-muted/30 border-border"
-                />
-              </div>
-            </div>
-
             {/* Sort */}
             <Select
               value={sort}
               onValueChange={(v) => v && setSort(v as SortOption)}
             >
-              <SelectTrigger className="bg-muted/30 border-border">
+              <SelectTrigger className="bg-muted/30 border-border w-full sm:w-[160px] shrink-0">
                 <ArrowUpDown className="mr-2 size-4 text-muted-foreground" />
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
@@ -272,6 +249,30 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
                 <SelectItem value="lowest">Lowest Amount</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Row 2: Date range */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-1 sm:max-w-[200px]">
+              <Label htmlFor="date-from" className="text-xs text-muted-foreground">From</Label>
+              <Input
+                id="date-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-muted/30 border-border"
+              />
+            </div>
+            <div className="flex-1 space-y-1 sm:max-w-[200px]">
+              <Label htmlFor="date-to" className="text-xs text-muted-foreground">To</Label>
+              <Input
+                id="date-to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-muted/30 border-border"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

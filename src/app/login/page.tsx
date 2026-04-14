@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { signInSchema, type SignInFormData } from "@/lib/validations";
@@ -121,9 +122,13 @@ function LoginForm() {
             href="/"
             className="group mx-auto flex items-center gap-2 text-lg font-bold"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary transition-transform duration-300 group-hover:scale-110">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <Image
+              src="/minimal_optimized_for_favicon.png"
+              alt="ExpenseVision logo"
+              width={50}
+              height={50}
+              className="transition-transform duration-300 group-hover:scale-110"
+            />
             <span>ExpenseVision</span>
           </Link>
           <CardTitle className="text-2xl">Welcome back</CardTitle>

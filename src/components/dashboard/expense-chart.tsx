@@ -48,8 +48,8 @@ export function ExpenseChart({ data }: ExpenseChartProps) {
             </p>
           </div>
         ) : (
-        <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[300px] w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart data={chartData}>
               <CartesianGrid
                 strokeDasharray="3 3"

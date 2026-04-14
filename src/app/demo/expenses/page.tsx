@@ -130,9 +130,10 @@ export default function DemoExpensesPage() {
 
       {/* Filters */}
       <Card className="border-border/50 bg-muted/30 backdrop-blur-md">
-        <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="relative">
+        <CardContent className="pt-6 space-y-3">
+          {/* Row 1: Search + Category + Sort */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
                 placeholder="Search vendor, description…"
@@ -143,7 +144,7 @@ export default function DemoExpensesPage() {
             </div>
 
             <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v ?? "all")}>
-              <SelectTrigger className="bg-muted/30 border-border/50">
+              <SelectTrigger className="bg-muted/30 border-border/50 w-full sm:w-[160px] shrink-0">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -156,31 +157,8 @@ export default function DemoExpensesPage() {
               </SelectContent>
             </Select>
 
-            <div className="flex gap-2">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="demo-date-from" className="text-xs text-muted-foreground">From</Label>
-                <Input
-                  id="demo-date-from"
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="bg-muted/30 border-border/50"
-                />
-              </div>
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="demo-date-to" className="text-xs text-muted-foreground">To</Label>
-                <Input
-                  id="demo-date-to"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="bg-muted/30 border-border/50"
-                />
-              </div>
-            </div>
-
             <Select value={sort} onValueChange={(v) => v && setSort(v as SortOption)}>
-              <SelectTrigger className="bg-muted/30 border-border/50">
+              <SelectTrigger className="bg-muted/30 border-border/50 w-full sm:w-[160px] shrink-0">
                 <ArrowUpDown className="mr-2 size-4 text-muted-foreground" />
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
@@ -191,6 +169,30 @@ export default function DemoExpensesPage() {
                 <SelectItem value="lowest">Lowest Amount</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Row 2: Date range */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-1 sm:max-w-[200px]">
+              <Label htmlFor="demo-date-from" className="text-xs text-muted-foreground">From</Label>
+              <Input
+                id="demo-date-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-muted/30 border-border/50"
+              />
+            </div>
+            <div className="flex-1 space-y-1 sm:max-w-[200px]">
+              <Label htmlFor="demo-date-to" className="text-xs text-muted-foreground">To</Label>
+              <Input
+                id="demo-date-to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-muted/30 border-border/50"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

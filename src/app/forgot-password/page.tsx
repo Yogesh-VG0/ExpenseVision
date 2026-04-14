@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Sparkles, Loader2, ArrowLeft, Mail } from "lucide-react";
+import { Loader2, ArrowLeft, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
@@ -66,9 +67,12 @@ export default function ForgotPasswordPage() {
             href="/"
             className="mx-auto flex items-center gap-2 text-lg font-bold"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <Image
+              src="/minimal_optimized_for_favicon.png"
+              alt="ExpenseVision logo"
+              width={50}
+              height={50}
+            />
             <span>ExpenseVision</span>
           </Link>
           <CardTitle className="text-2xl">

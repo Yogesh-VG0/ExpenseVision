@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -81,9 +82,13 @@ export function Navbar() {
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="group flex items-center gap-2 text-lg font-bold">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary transition-transform duration-300 group-hover:scale-110">
-            <Sparkles className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <Image
+            src="/minimal_optimized_for_favicon.png"
+            alt="ExpenseVision logo"
+            width={50}
+            height={50}
+            className="transition-transform duration-300 group-hover:scale-110"
+          />
           <span>ExpenseVision</span>
         </Link>
 

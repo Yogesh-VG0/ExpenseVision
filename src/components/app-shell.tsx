@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -76,12 +77,15 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
       {/* Logo */}
       <div className="flex h-16 items-center gap-2 border-b border-border px-6">
         <Link href="/" className="group flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary transition-transform duration-300 group-hover:scale-110">
-            <Sparkles className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <Image
+            src="/minimal_optimized_for_favicon.png"
+            alt="ExpenseVision logo"
+            width={50}
+            height={50}
+            className="transition-transform duration-300 group-hover:scale-110"
+          />
           <span className="text-lg font-bold">ExpenseVision</span>
         </Link>
-
       </div>
 
       {/* Nav Items */}

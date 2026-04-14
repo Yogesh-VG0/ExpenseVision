@@ -30,18 +30,43 @@ export const metadata: Metadata = {
     "personal finance",
     "money management",
   ],
+  icons: {
+    icon: [
+      { url: "/minimal_optimized_for_favicon.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/minimal_optimized_for_favicon.png", type: "image/png" },
+    ],
+  },
   openGraph: {
     title: "ExpenseVision — AI-Powered Expense Tracking",
     description:
       "Track expenses, scan receipts with AI, manage budgets, and get smart financial insights.",
     type: "website",
     siteName: "ExpenseVision",
+    images: [
+      {
+        url: "/og_image.png",
+        width: 1200,
+        height: 630,
+        alt: "ExpenseVision — AI-Powered Expense Tracking",
+        type: "image/png",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "ExpenseVision — AI-Powered Expense Tracking",
     description:
       "Track expenses, scan receipts with AI, manage budgets, and get smart financial insights.",
+    images: [
+      {
+        url: "/og_image.png",
+        width: 1200,
+        height: 630,
+        alt: "ExpenseVision — AI-Powered Expense Tracking",
+      },
+    ],
   },
   robots: {
     index: true,
