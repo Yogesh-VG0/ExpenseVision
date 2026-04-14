@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/theme-provider";
 import { toast } from "sonner";
@@ -56,6 +56,13 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
+import {
+  getPushCapabilityState,
+  subscribeToPush,
+  unsubscribeFromPush,
+  type PushCapabilityState,
+} from "@/lib/push-subscription";
+import { trackEvent } from "@/lib/telemetry";
 import type { Profile } from "@/lib/types";
 
 const CURRENCIES = [
@@ -95,8 +102,18 @@ export function SettingsClient({ profile }: SettingsClientProps) {
   // Preferences state
   const [currency, setCurrency] = useState(profile.currency ?? "USD");
   const [savingPrefs, setSavingPrefs] = useState(false);
-  const [budgetAlerts, setBudgetAlerts] = useState(true);
-  const [weeklySummary, setWeeklySummary] = useState(false);
+  const [budgetAlerts, setBudgetAlerts] = useState(
+    (profile as unknown as Record<string, unknown>).notification_preferences
+      ? ((profile as unknown as Record<string, unknown>).notification_preferences as Record<string, boolean>)?.budget_alerts ?? true
+      : true
+  );
+  const [weeklySummary, setWeeklySummary] = useState(
+    (profile as unknown as Record<string, unknown>).notification_preferences
+      ? ((profile as unknown as Record<string, unknown>).notification_preferences as Record<string, boolean>)?.weekly_summary ?? false
+      : false
+  );
+  const [pushState, setPushState] = useState<PushCapabilityState>("unsupported");
+  const [pushLoading, setPushLoading] = useState(false);
 
   // Data state
   const [exportingCSV, setExportingCSV] = useState(false);
@@ -180,14 +197,13 @@ export function SettingsClient({ profile }: SettingsClientProps) {
   async function handleDeleteAccount() {
     setDeletingAccount(true);
     try {
-      // Delete all user data first
-      await supabase.from("expenses").delete().eq("user_id", profile.id);
-      await supabase.from("budgets").delete().eq("user_id", profile.id);
-      await supabase.from("profiles").delete().eq("id", profile.id);
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete account");
+      }
 
-      // Sign out — full account deletion typically requires a server-side admin call
-      await supabase.auth.signOut();
-      toast.success("Account data deleted. You have been signed out.");
+      toast.success("Account deleted permanently. Goodbye!");
       router.push("/");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to delete account";
@@ -216,6 +232,85 @@ export function SettingsClient({ profile }: SettingsClientProps) {
       toast.error(message);
     } finally {
       setSavingPrefs(false);
+    }
+  }
+
+  // Persist notification preferences
+  async function handleToggleBudgetAlerts(checked: boolean) {
+    setBudgetAlerts(checked);
+    try {
+      await supabase
+        .from("profiles")
+        .update({
+          notification_preferences: {
+            budget_alerts: checked,
+            weekly_summary: weeklySummary,
+            push_enabled: pushState === "subscribed",
+          },
+        })
+        .eq("id", profile.id);
+      toast.success(checked ? "Budget alerts enabled" : "Budget alerts disabled");
+    } catch {
+      toast.error("Failed to update preference");
+      setBudgetAlerts(!checked);
+    }
+  }
+
+  async function handleToggleWeeklySummary(checked: boolean) {
+    setWeeklySummary(checked);
+    try {
+      await supabase
+        .from("profiles")
+        .update({
+          notification_preferences: {
+            budget_alerts: budgetAlerts,
+            weekly_summary: checked,
+            push_enabled: pushState === "subscribed",
+          },
+        })
+        .eq("id", profile.id);
+      toast.success(checked ? "Weekly summary enabled" : "Weekly summary disabled");
+    } catch {
+      toast.error("Failed to update preference");
+      setWeeklySummary(!checked);
+    }
+  }
+
+  // Check push state on mount
+  useEffect(() => {
+    void getPushCapabilityState().then(setPushState);
+  }, []);
+
+  async function handleTogglePush() {
+    setPushLoading(true);
+    try {
+      if (pushState === "subscribed") {
+        const ok = await unsubscribeFromPush();
+        if (ok) {
+          setPushState("unsubscribed");
+          toast.success("Push notifications disabled");
+        }
+      } else {
+        const sub = await subscribeToPush();
+        if (sub) {
+          setPushState("subscribed");
+          await trackEvent("push_subscription_accepted");
+          toast.success("Push notifications enabled!");
+        } else {
+          const newState = await getPushCapabilityState();
+          setPushState(newState);
+          if (newState === "permission-denied") {
+            toast.error("Permission denied. Enable notifications in browser settings.");
+          } else {
+            await trackEvent("push_subscription_failed");
+            toast.error("Failed to enable push notifications");
+          }
+        }
+      }
+    } catch {
+      toast.error("Failed to update push state");
+    } finally {
+      setPushLoading(false);
     }
   }
 
@@ -590,7 +685,7 @@ export function SettingsClient({ profile }: SettingsClientProps) {
                     Get notified when spending exceeds 80% of a budget
                   </p>
                 </div>
-                <Switch checked={budgetAlerts} onCheckedChange={setBudgetAlerts} />
+                <Switch checked={budgetAlerts} onCheckedChange={handleToggleBudgetAlerts} />
               </div>
               <Separator className="bg-muted/50" />
               <div className="flex items-center justify-between">
@@ -600,8 +695,54 @@ export function SettingsClient({ profile }: SettingsClientProps) {
                     Receive a weekly spending summary every Monday
                   </p>
                 </div>
-                <Switch checked={weeklySummary} onCheckedChange={setWeeklySummary} />
+                <Switch checked={weeklySummary} onCheckedChange={handleToggleWeeklySummary} />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Push Notifications */}
+          <Card className="border-border bg-background/60 backdrop-blur-xl">
+            <CardHeader>
+              <CardTitle>Push Notifications</CardTitle>
+              <CardDescription>
+                Get notified on this device when budget thresholds are crossed
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {pushState === "unsupported" && (
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  Push notifications are not supported in this browser.
+                </div>
+              )}
+              {pushState === "unconfigured" && (
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  Push notifications are not configured for this deployment.
+                </div>
+              )}
+              {pushState === "permission-denied" && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
+                  Notification permission was denied. Enable it in your browser settings to use push notifications.
+                </div>
+              )}
+              {(pushState === "permission-default" || pushState === "unsubscribed" || pushState === "subscribed") && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {pushState === "subscribed" ? "Push enabled" : "Enable push notifications"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {pushState === "subscribed"
+                        ? "You will receive notifications on this device"
+                        : "Receive budget alerts and summaries as push notifications"}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={pushState === "subscribed"}
+                    onCheckedChange={handleTogglePush}
+                    disabled={pushLoading}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -640,13 +781,13 @@ export function SettingsClient({ profile }: SettingsClientProps) {
               <div className="flex items-center gap-3">
                 <CardTitle>Import Data</CardTitle>
                 <Badge variant="secondary" className="text-xs">
-                  Coming soon
+                  CSV ready
                 </Badge>
               </div>
               <CardDescription>Import expenses from CSV or other sources</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" disabled>
+              <Button variant="outline" onClick={() => router.push("/imports")}>
                 <Upload className="mr-2 h-4 w-4" />
                 Import CSV
               </Button>

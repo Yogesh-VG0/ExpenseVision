@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, Sparkles, LayoutDashboard, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Menu, LayoutDashboard, Settings, LogOut, ChevronDown } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";

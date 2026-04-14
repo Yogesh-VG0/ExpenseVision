@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -26,10 +26,13 @@ import {
   Menu,
   Sparkles,
   ChevronDown,
+  Bell,
+  FileUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CurrencyProvider } from "@/components/currency-provider";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 const navItems = [
@@ -38,6 +41,7 @@ const navItems = [
   { href: "/budgets", label: "Budgets", icon: Wallet },
   { href: "/receipts", label: "Receipts", icon: Camera },
   { href: "/insights", label: "AI Insights", icon: Brain },
+  { href: "/imports", label: "Import", icon: FileUp },
 ];
 
 interface AppShellProps {
@@ -50,6 +54,26 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const isImmersiveCapture = !isDemo && pathname === "/receipts/capture";
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (isDemo) return;
+    try {
+      const res = await fetch("/api/notifications");
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadCount(data.unreadCount ?? 0);
+      }
+    } catch { /* ignore */ }
+  }, [isDemo]);
+
+  useEffect(() => {
+    void fetchUnreadCount();
+    // Poll every 60s for new notifications
+    const interval = setInterval(() => void fetchUnreadCount(), 60_000);
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
 
   const displayName = user?.full_name || user?.email?.split("@")[0] || "User";
   const initials = displayName
@@ -139,79 +163,101 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:block">
-        {renderSidebar()}
-      </aside>
+    <div className={cn("flex h-screen overflow-hidden bg-background", isImmersiveCapture && "h-dvh") }>
+      {!isImmersiveCapture && (
+        <aside className="hidden md:block">
+          {renderSidebar()}
+        </aside>
+      )}
 
-      {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Bar */}
-        <header className="flex h-16 items-center justify-between border-b border-border bg-card/50 px-4 backdrop-blur-xl md:px-6">
-          {/* Mobile menu trigger */}
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" />}>
-              <Menu className="h-5 w-5" />
-            </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
-              <SheetTitle className="sr-only">Navigation</SheetTitle>
-              {renderSidebar(true)}
-            </SheetContent>
-          </Sheet>
+        {!isImmersiveCapture && (
+          <header className="flex h-16 items-center justify-between border-b border-border bg-card/50 px-4 backdrop-blur-xl md:px-6">
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" />}>
+                <Menu className="h-5 w-5" />
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 p-0">
+                <SheetTitle className="sr-only">Navigation</SheetTitle>
+                {renderSidebar(true)}
+              </SheetContent>
+            </Sheet>
 
-          {/* Demo Banner */}
-          {isDemo && (
-            <div className="hidden items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent md:flex">
-              <Sparkles className="h-3 w-3" />
-              Demo Mode — Data is read-only
+            {isDemo && (
+              <div className="hidden items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent md:flex">
+                <Sparkles className="h-3 w-3" />
+                Demo Mode — Data is read-only
+              </div>
+            )}
+
+            <div className="flex-1" />
+
+            <div className="flex items-center gap-3">
+              {/* Notification bell */}
+              {!isDemo && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative"
+                  render={<Link href="/notifications" />}
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full px-1 text-[10px] font-semibold"
+                    >
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </Badge>
+                  )}
+                </Button>
+              )}
+
+              <ThemeToggle />
+
+              {isDemo ? (
+                <Button size="sm" render={<Link href="/signup" />}>Sign Up Free</Button>
+              ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="ghost" className="flex items-center gap-2 px-2" />}>
+                    <Avatar className="h-8 w-8">
+                      {user?.avatar_url && (
+                        <AvatarImage src={user.avatar_url} alt={displayName} />
+                      )}
+                      <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="hidden text-sm font-medium sm:block">
+                      {displayName}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 border border-border bg-popover shadow-xl">
+                  <DropdownMenuItem render={<Link href="/settings" />} className="cursor-pointer py-2 px-3">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer py-2 px-3">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             </div>
+          </header>
+        )}
+
+        <main
+          className={cn(
+            "flex-1 overflow-y-auto",
+            isImmersiveCapture ? "p-0" : "animate-fade-up p-4 md:p-6"
           )}
-
-          <div className="flex-1" />
-
-          {/* Right side controls */}
-          <div className="flex items-center gap-3">
-            {/* Theme Toggle */}
-            <ThemeToggle />
-
-            {/* User Menu */}
-            {isDemo ? (
-              <Button size="sm" render={<Link href="/signup" />}>Sign Up Free</Button>
-            ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" className="flex items-center gap-2 px-2" />}>
-                  <Avatar className="h-8 w-8">
-                    {user?.avatar_url && (
-                      <AvatarImage src={user.avatar_url} alt={displayName} />
-                    )}
-                    <AvatarFallback className="bg-primary/10 text-xs text-primary">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="hidden text-sm font-medium sm:block">
-                    {displayName}
-                  </span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 border border-border bg-popover shadow-xl">
-                <DropdownMenuItem render={<Link href="/settings" />} className="cursor-pointer py-2 px-3">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer py-2 px-3">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 animate-fade-up" style={{ animationDelay: "100ms" }}>
+          style={isImmersiveCapture ? undefined : { animationDelay: "100ms" }}
+        >
           {isDemo ? children : <CurrencyProvider>{children}</CurrencyProvider>}
         </main>
       </div>

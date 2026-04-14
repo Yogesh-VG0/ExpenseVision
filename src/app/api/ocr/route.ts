@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { persistReceiptRecord } from "@/lib/receipt-records";
 import { CATEGORIES } from "@/lib/types";
 import { aiRateLimit } from "@/lib/redis";
-import type { OCRResult, Category } from "@/lib/types";
+import {
+  buildReceiptStoragePath,
+  inferReceiptMimeType,
+  isReceiptStoragePath,
+  validateReceiptFile,
+} from "@/lib/receipts";
+import type {
+  OCRResult,
+  Category,
+  ReceiptLifecycleStatus,
+  ReceiptProcessingResult,
+  ReceiptRecoveryAction,
+} from "@/lib/types";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -22,6 +35,18 @@ const OPENROUTER_MODELS = [
 ];
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.name);
+
+const EMPTY_OCR_RESULT: OCRResult = {
+  amount: null,
+  vendor: null,
+  date: null,
+  category: null,
+  description: null,
+  line_items: [],
+  confidence: 0,
+  raw_text: "",
+  receipt_path: null,
+};
 
 function sanitizeCategory(raw: string | null | undefined): Category | null {
   if (!raw) return null;
@@ -58,10 +83,49 @@ function parseOCRResponse(content: string): OCRResult | null {
           ? Math.max(0, Math.min(1, parsed.confidence))
           : 0.5,
       raw_text: typeof parsed.raw_text === "string" ? parsed.raw_text.slice(0, 5000) : "",
+      receipt_path: null,
     };
   } catch {
     return null;
   }
+}
+
+function buildProcessingResult(
+  ocrResult: OCRResult | null,
+  {
+    receiptPath,
+    uploadStatus,
+    ocrStatus,
+    warning,
+    error,
+    recoveryActions = [],
+    status,
+  }: {
+    receiptPath: string | null;
+    uploadStatus: ReceiptLifecycleStatus;
+    ocrStatus: ReceiptLifecycleStatus;
+    warning?: string | null;
+    error?: string | null;
+    recoveryActions?: ReceiptRecoveryAction[];
+    status?: ReceiptProcessingResult["status"];
+  }
+): ReceiptProcessingResult {
+  return {
+    ...(ocrResult ?? EMPTY_OCR_RESULT),
+    receipt_path: receiptPath,
+    status:
+      status ??
+      (error && uploadStatus === "failed" && ocrStatus === "failed"
+        ? "error"
+        : warning || error || uploadStatus === "failed" || ocrStatus === "failed"
+          ? "partial"
+          : "success"),
+    upload_status: uploadStatus,
+    ocr_status: ocrStatus,
+    warning: warning ?? null,
+    error: error ?? null,
+    recovery_actions: recoveryActions,
+  };
 }
 
 const SYSTEM_PROMPT = `You are a receipt OCR assistant. Extract structured data from receipt images.
@@ -212,38 +276,91 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    const fileEntry = formData.get("file");
+    const storedReceiptPathEntry = formData.get("receipt_path");
+    const providedReceiptPath =
+      typeof storedReceiptPathEntry === "string" && storedReceiptPathEntry.length > 0
+        ? storedReceiptPathEntry
+        : null;
+    const incomingFile = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
+
+    if (!incomingFile && !providedReceiptPath) {
+      return NextResponse.json({ error: "No file or stored receipt provided" }, { status: 400 });
+    }
+
+    if (providedReceiptPath && !isReceiptStoragePath(providedReceiptPath)) {
+      return NextResponse.json(
+        { error: "Invalid stored receipt path" },
+        { status: 400 }
+      );
+    }
+
+    if (incomingFile) {
+      const validationError = validateReceiptFile(incomingFile);
+
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 });
+      }
+    }
+
+    let file = incomingFile;
+
+    if (!file && providedReceiptPath) {
+      const { data: storedFile, error: downloadError } = await supabase.storage
+        .from("receipts")
+        .download(providedReceiptPath);
+
+      if (downloadError || !storedFile) {
+        return NextResponse.json(
+          { error: "Stored receipt could not be loaded. Please upload it again." },
+          { status: 404 }
+        );
+      }
+
+      const storedFileName = providedReceiptPath.split("/").pop() ?? "receipt.jpg";
+      file = new File([await storedFile.arrayBuffer()], storedFileName, {
+        type: storedFile.type || inferReceiptMimeType(storedFileName),
+      });
+    }
+
     if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return NextResponse.json({ error: "No file available for OCR" }, { status: 400 });
     }
 
-    // Validate file type and size
-    const validTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/gif",
-      "application/pdf",
-    ];
-    if (!validTypes.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Unsupported file type" },
-        { status: 400 }
-      );
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "File must be under 10 MB" },
-        { status: 400 }
-      );
+    let receiptStoragePath = providedReceiptPath;
+    let uploadStatus: ReceiptLifecycleStatus = providedReceiptPath ? "skipped" : "failed";
+    let uploadWarning: string | null = null;
+
+    if (!receiptStoragePath && incomingFile) {
+      try {
+        const filePath = buildReceiptStoragePath(user.id, incomingFile.name);
+        const { error: uploadError } = await supabase.storage
+          .from("receipts")
+          .upload(filePath, incomingFile, { contentType: incomingFile.type, upsert: false });
+
+        if (uploadError) {
+          uploadWarning = "Receipt file could not be uploaded. You can retry upload or save without attaching the receipt.";
+          uploadStatus = "failed";
+        } else {
+          receiptStoragePath = filePath;
+          uploadStatus = "succeeded";
+          await persistReceiptRecord(supabase, user.id, filePath, null);
+        }
+      } catch {
+        if (receiptStoragePath) {
+          uploadWarning = "Receipt uploaded, but receipt metadata could not be saved yet.";
+          uploadStatus = "succeeded";
+        } else {
+          uploadWarning = "Receipt file could not be uploaded. You can retry upload or save without attaching the receipt.";
+          uploadStatus = "failed";
+        }
+      }
     }
 
-    // Convert to base64 for vision APIs
     const bytes = await file.arrayBuffer();
     const base64 = Buffer.from(bytes).toString("base64");
     const dataUrl = `data:${file.type};base64,${base64}`;
 
-    // Try Gemini first (direct API — best quality + structured JSON output)
     let ocrResult: OCRResult | null = null;
     let lastError: string | null = null;
 
@@ -262,31 +379,70 @@ export async function POST(request: NextRequest) {
     }
 
     if (!ocrResult) {
-      console.error("OCR failed with all providers:", lastError);
       const isRateLimit = lastError?.includes("rate") || lastError?.includes("429");
+      const failureMessage = isRateLimit
+        ? "OCR service is temporarily rate-limited. Please wait a minute and try again."
+        : "OCR processing failed after multiple attempts. Please try a clearer image or try again later.";
+
+      if (receiptStoragePath) {
+        try {
+          await persistReceiptRecord(supabase, user.id, receiptStoragePath, null);
+        } catch {
+        }
+
+        return NextResponse.json(
+          buildProcessingResult(null, {
+            receiptPath: receiptStoragePath,
+            uploadStatus,
+            ocrStatus: "failed",
+            warning: uploadWarning,
+            error: failureMessage,
+            recoveryActions: ["retry_ocr", "save_manually"],
+            status: "partial",
+          })
+        );
+      }
+
+      console.error("OCR failed with all providers:", lastError);
+
       return NextResponse.json(
-        {
-          error: isRateLimit
-            ? "OCR service is temporarily rate-limited. Please wait a minute and try again."
-            : "OCR processing failed after multiple attempts. Please try a clearer image or try again later.",
-        },
+        buildProcessingResult(null, {
+          receiptPath: null,
+          uploadStatus,
+          ocrStatus: "failed",
+          warning: uploadWarning,
+          error: failureMessage,
+          recoveryActions: ["retry_ocr", "retry_upload", "save_manually"],
+          status: "error",
+        }),
         { status: 502 }
       );
     }
 
-    // Optionally store receipt in Supabase Storage
-    try {
-      const rawExt = file.name.split(".").pop() || "jpg";
-      const ext = rawExt.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "jpg";
-      const filePath = `${user.id}/${Date.now()}.${ext}`;
-      await supabase.storage
-        .from("receipts")
-        .upload(filePath, file, { contentType: file.type, upsert: false });
-    } catch {
-      // Storage upload is optional — don't fail the OCR response
+    if (receiptStoragePath) {
+      try {
+        await persistReceiptRecord(supabase, user.id, receiptStoragePath, ocrResult);
+      } catch {
+        uploadWarning = uploadWarning ?? "Receipt uploaded, but receipt metadata could not be saved yet.";
+      }
     }
 
-    return NextResponse.json(ocrResult);
+    return NextResponse.json(
+      buildProcessingResult(
+        {
+          ...ocrResult,
+          receipt_path: receiptStoragePath,
+        },
+        {
+          receiptPath: receiptStoragePath,
+          uploadStatus,
+          ocrStatus: "succeeded",
+          warning: uploadStatus === "failed" ? uploadWarning : uploadWarning,
+          recoveryActions: uploadStatus === "failed" ? ["retry_upload", "save_manually"] : [],
+          status: uploadStatus === "failed" || uploadWarning ? "partial" : "success",
+        }
+      )
+    );
   } catch (error) {
     console.error("POST /api/ocr error:", error);
     return NextResponse.json(

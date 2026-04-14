@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { useCurrency } from "@/components/currency-provider";
-import type { Expense, Budget } from "@/lib/types";
+import type { Expense } from "@/lib/types";
 
 /* ---------- Insight type from AI endpoint ---------- */
 interface InsightItem {
@@ -63,14 +63,10 @@ const INSIGHT_META: Record<
 /* ---------- Props ---------- */
 interface InsightsClientProps {
   currentMonthExpenses: Expense[];
-  budgets: Budget[];
-  recentExpenses: Expense[];
 }
 
 export function InsightsClient({
   currentMonthExpenses,
-  budgets,
-  recentExpenses,
 }: InsightsClientProps) {
   const { format: formatCurrency } = useCurrency();
   const [insights, setInsights] = useState<InsightItem[]>([]);
@@ -129,11 +125,7 @@ export function InsightsClient({
       const res = await fetch("/api/ai-insights", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentMonthExpenses,
-          budgets,
-          recentExpenses,
-        }),
+        body: JSON.stringify({}),
       });
 
       if (!res.ok) throw new Error("Failed to generate insights");

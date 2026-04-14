@@ -3,8 +3,8 @@ import { Shield, Lock, Eye, Server } from "lucide-react";
 const securityFeatures = [
   {
     icon: Lock,
-    title: "End-to-End Encryption",
-    description: "All data encrypted in transit (TLS 1.3) and at rest (AES-256).",
+    title: "Encrypted in Transit & at Rest",
+    description: "All data encrypted via TLS in transit and AES-256 at rest on Supabase's managed infrastructure.",
   },
   {
     icon: Shield,
@@ -37,7 +37,7 @@ export function SecuritySection() {
             Your financial data, locked down
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Built with security as a first-class concern — encryption,
+            Built with security as a first-class concern — TLS encryption,
             row-level isolation, and privacy-first defaults.
           </p>
         </div>

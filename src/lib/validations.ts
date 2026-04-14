@@ -14,6 +14,7 @@ export const expenseSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
   tags: z.array(z.string().max(50)).max(10).optional().default([]),
   is_recurring: z.boolean().optional().default(false),
+  receipt_url: z.string().max(1000).optional().nullable(),
 });
 
 export const budgetSchema = z.object({

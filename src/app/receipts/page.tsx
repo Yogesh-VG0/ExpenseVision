@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ReceiptsClient } from "./receipts-client";
-import type { Expense } from "@/lib/types";
+import { buildReceiptHistoryItem, isReceiptStoragePath } from "@/lib/receipts";
+import type { Expense, ReceiptHistoryItem } from "@/lib/types";
 
 export const metadata = {
   title: "Receipts",
@@ -26,5 +27,31 @@ export default async function ReceiptsPage() {
     .not("receipt_url", "is", null)
     .order("date", { ascending: false });
 
-  return <ReceiptsClient initialReceipts={(receipts as Expense[]) ?? []} />;
+  const receiptsWithUrls = await Promise.all(
+    ((receipts as Expense[]) ?? []).map(async (expense) => {
+      if (!expense.receipt_url) {
+        return buildReceiptHistoryItem(expense, {
+          accessState: "unavailable",
+        });
+      }
+
+      if (!isReceiptStoragePath(expense.receipt_url)) {
+        return buildReceiptHistoryItem(expense, {
+          signedUrl: expense.receipt_url,
+          accessState: "available",
+        });
+      }
+
+      const { data, error } = await supabase.storage
+        .from("receipts")
+        .createSignedUrl(expense.receipt_url, 3600);
+
+      return buildReceiptHistoryItem(expense, {
+        signedUrl: data?.signedUrl ?? null,
+        accessState: error || !data?.signedUrl ? "missing" : "available",
+      });
+    })
+  );
+
+  return <ReceiptsClient initialReceipts={receiptsWithUrls as ReceiptHistoryItem[]} />;
 }

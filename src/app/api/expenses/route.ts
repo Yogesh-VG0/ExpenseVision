@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { expenseSchema } from "@/lib/validations";
+import { isReceiptStoragePath } from "@/lib/receipts";
+import { checkBudgetAlerts } from "@/lib/budget-alerts";
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,6 +75,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const idempotencyKey: string | null =
+      typeof body?.idempotency_key === "string" && body.idempotency_key.length > 0
+        ? body.idempotency_key
+        : null;
+
     const parsed = expenseSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -81,13 +88,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Idempotency guard — return existing expense if this key was already used
+    if (idempotencyKey) {
+      const { data: existingByKey } = await supabase
+        .from("expenses")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
+
+      if (existingByKey) {
+        return NextResponse.json({ expense: existingByKey }, { status: 200 });
+      }
+    }
+
+    if (isReceiptStoragePath(parsed.data.receipt_url)) {
+      const { data: existingReceipt, error: receiptLookupError } = await supabase
+        .from("receipts")
+        .select("id, expense_id")
+        .eq("user_id", user.id)
+        .eq("file_url", parsed.data.receipt_url)
+        .maybeSingle();
+
+      if (receiptLookupError) {
+        throw receiptLookupError;
+      }
+
+      if (existingReceipt?.expense_id) {
+        return NextResponse.json(
+          { error: "This receipt is already linked to an existing expense." },
+          { status: 409 }
+        );
+      }
+    }
+
+    const insertPayload: Record<string, unknown> = { ...parsed.data, user_id: user.id };
+    if (idempotencyKey) {
+      insertPayload.idempotency_key = idempotencyKey;
+    }
+
     const { data: expense, error } = await supabase
       .from("expenses")
-      .insert({ ...parsed.data, user_id: user.id })
+      .insert(insertPayload)
       .select()
       .single();
 
     if (error) throw error;
+
+    if (isReceiptStoragePath(expense.receipt_url)) {
+      const { data: linkedRows } = await supabase
+        .from("receipts")
+        .update({ expense_id: expense.id })
+        .eq("user_id", user.id)
+        .eq("file_url", expense.receipt_url)
+        .is("expense_id", null)
+        .select("id");
+
+      if (!linkedRows || linkedRows.length === 0) {
+        await supabase.from("receipts").insert({
+          user_id: user.id,
+          expense_id: expense.id,
+          file_url: expense.receipt_url,
+        });
+      }
+    }
+
+    // Fire-and-forget budget alert check
+    checkBudgetAlerts(supabase, user.id, expense.category).catch((err) =>
+      console.error("Budget alert check failed:", err)
+    );
 
     return NextResponse.json({ expense }, { status: 201 });
   } catch (error) {

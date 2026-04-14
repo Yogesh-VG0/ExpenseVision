@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { aiRateLimit } from "@/lib/redis";
 
@@ -23,7 +23,7 @@ interface InsightItem {
   data?: Record<string, unknown>;
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const supabase = await createClient();
     const {
@@ -51,12 +51,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { currentMonthExpenses = [], budgets = [], recentExpenses = [] } = body;
+    // Fetch the user's actual data server-side for authoritative insights
+    const now = new Date();
+    const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
-    if (!Array.isArray(currentMonthExpenses) || !Array.isArray(budgets) || !Array.isArray(recentExpenses)) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-    }
+    const [expensesRes, budgetsRes, recentRes] = await Promise.all([
+      supabase
+        .from("expenses")
+        .select("amount,category,vendor,date,is_recurring")
+        .eq("user_id", user.id)
+        .gte("date", startOfMonth)
+        .order("date", { ascending: false }),
+      supabase
+        .from("budgets")
+        .select("category,monthly_limit")
+        .eq("user_id", user.id),
+      supabase
+        .from("expenses")
+        .select("amount,category,vendor,date")
+        .eq("user_id", user.id)
+        .order("date", { ascending: false })
+        .limit(10),
+    ]);
+
+    const currentMonthExpenses = expensesRes.data ?? [];
+    const budgets = budgetsRes.data ?? [];
+    const recentExpenses = recentRes.data ?? [];
 
     // Build a concise financial summary for the AI
     const totalSpent = currentMonthExpenses.reduce(

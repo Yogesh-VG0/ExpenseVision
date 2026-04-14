@@ -48,14 +48,9 @@ const CurrencyContext = createContext<CurrencyContextValue>({
 });
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(() => detectCurrencyFromLocale());
 
   useEffect(() => {
-    // Start with locale-based detection
-    const detected = detectCurrencyFromLocale();
-    setCurrency(detected);
-
-    // Override with user preference if available
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;

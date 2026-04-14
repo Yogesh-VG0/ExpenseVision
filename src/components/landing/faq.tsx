@@ -13,7 +13,7 @@ const faqs = [
   {
     question: "How does receipt scanning work?",
     answer:
-      "Take a photo of any receipt and our AI-powered OCR extracts the amount, vendor, date, and category automatically. It works with printed and handwritten receipts in multiple languages.",
+      "Take a photo of any receipt and our AI-powered OCR extracts the amount, vendor, date, and suggests a category. It works best with clearly printed receipts.",
   },
   {
     question: "Is my financial data secure?",
@@ -28,7 +28,7 @@ const faqs = [
   {
     question: "What does the AI insights feature do?",
     answer:
-      "Our AI analyzes your spending patterns to provide personalized tips — like identifying subscriptions you could cancel, spotting unusual spending spikes, and suggesting budget optimizations.",
+      "Click 'Generate Insights' and our AI analyzes your spending to provide personalized tips — like spotting high-spending categories, flagging budget overruns, and suggesting ways to save.",
   },
   {
     question: "Can I try it without signing up?",

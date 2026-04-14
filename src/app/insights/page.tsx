@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { InsightsClient } from "./insights-client";
-import type { Expense, Budget } from "@/lib/types";
+import type { Expense } from "@/lib/types";
 
 export const metadata = {
   title: "AI Insights",
@@ -28,16 +28,7 @@ export default async function InsightsPage() {
     .toISOString()
     .split("T")[0];
 
-  // 6 months ago
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
-    .toISOString()
-    .split("T")[0];
-
-  const [
-    { data: currentMonthExpenses },
-    { data: budgets },
-    { data: recentExpenses },
-  ] = await Promise.all([
+  const [{ data: currentMonthExpenses }] = await Promise.all([
     supabase
       .from("expenses")
       .select("*")
@@ -45,20 +36,11 @@ export default async function InsightsPage() {
       .gte("date", startOfMonth)
       .lte("date", endOfMonth)
       .order("date", { ascending: false }),
-    supabase.from("budgets").select("*").eq("user_id", user.id),
-    supabase
-      .from("expenses")
-      .select("*")
-      .eq("user_id", user.id)
-      .gte("date", sixMonthsAgo)
-      .order("date", { ascending: false }),
   ]);
 
   return (
     <InsightsClient
       currentMonthExpenses={(currentMonthExpenses as Expense[]) ?? []}
-      budgets={(budgets as Budget[]) ?? []}
-      recentExpenses={(recentExpenses as Expense[]) ?? []}
     />
   );
 }

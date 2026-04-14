@@ -14,7 +14,7 @@ const steps = [
     icon: Cpu,
     title: "AI Extracts",
     description:
-      "Our AI reads the receipt, extracts the amount, vendor, date, and auto-categorizes it.",
+      "Our AI reads the receipt, extracts the amount, vendor, date, and suggests a category for review.",
     color: "from-accent to-violet-400",
   },
   {
@@ -22,7 +22,7 @@ const steps = [
     icon: PieChart,
     title: "Track & Budget",
     description:
-      "See real-time dashboards, budget progress, and spending patterns at a glance.",
+      "See dashboards, budget progress, and spending patterns at a glance.",
     color: "from-green-500 to-emerald-400",
   },
   {
@@ -30,7 +30,7 @@ const steps = [
     icon: Lightbulb,
     title: "Get Insights",
     description:
-      "Receive AI-powered tips to reduce spending, optimize budgets, and reach your goals.",
+      "Generate AI-powered tips on demand to reduce spending and optimize your budgets.",
     color: "from-blue-500 to-cyan-400",
   },
 ];

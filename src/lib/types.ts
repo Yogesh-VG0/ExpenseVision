@@ -83,4 +83,32 @@ export interface OCRResult {
   line_items: { description: string; amount: number }[];
   confidence: number;
   raw_text: string;
+  receipt_path: string | null;
+}
+
+export type ReceiptAccessState = "available" | "missing" | "unavailable";
+
+export type ReceiptProcessingStatus = "success" | "partial" | "error";
+
+export type ReceiptLifecycleStatus = "succeeded" | "failed" | "skipped";
+
+export type ReceiptRecoveryAction =
+  | "retry_ocr"
+  | "retry_upload"
+  | "save_manually"
+  | "remove_broken_receipt_reference";
+
+export interface ReceiptProcessingResult extends OCRResult {
+  status: ReceiptProcessingStatus;
+  upload_status: ReceiptLifecycleStatus;
+  ocr_status: ReceiptLifecycleStatus;
+  warning: string | null;
+  error: string | null;
+  recovery_actions: ReceiptRecoveryAction[];
+}
+
+export interface ReceiptHistoryItem extends Expense {
+  receipt_storage_path: string | null;
+  receipt_access_url: string | null;
+  receipt_access_state: ReceiptAccessState;
 }

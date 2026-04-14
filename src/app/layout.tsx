@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { PWAProvider } from "@/components/pwa-provider";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -93,6 +94,7 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="dark">
           {children}
           <Toaster richColors position="top-right" />
+          <PWAProvider />
         </ThemeProvider>
       </body>
     </html>
