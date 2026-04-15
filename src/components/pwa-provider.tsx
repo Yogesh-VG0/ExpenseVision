@@ -128,16 +128,15 @@ export function PWAProvider({ children }: { children: ReactNode }) {
   const dismiss = useCallback(() => {
     void trackEvent("install_prompt_dismissed", { surface: "install_banner" });
     setShowBanner(false);
-    setDeferredPrompt(null);
   }, []);
 
-  const canInstall = showBanner && !!deferredPrompt;
+  const canInstall = !!deferredPrompt;
 
   return (
     <PWAContext value={{ canInstall, install, dismiss }}>
       {children}
-      {/* Only show floating banner on landing page where there's no sidebar */}
-      {isLandingPage && canInstall && (
+      {/* Only show floating banner on landing page after a delay */}
+      {isLandingPage && showBanner && canInstall && (
         <div className="fixed bottom-4 right-4 z-50 w-72 animate-fade-up rounded-xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md">
           <div className="flex items-center gap-2">
             <Download className="h-4 w-4 shrink-0 text-primary" />

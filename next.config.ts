@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' blob: data: https://*.supabase.co",
+              "img-src 'self' blob: data: https://*.supabase.co https://*.googleusercontent.com https://avatars.githubusercontent.com",
               "connect-src 'self' https://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://*.upstash.io",
               "frame-ancestors 'none'",
               "base-uri 'self'",

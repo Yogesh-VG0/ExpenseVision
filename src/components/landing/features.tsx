@@ -71,9 +71,6 @@ const features = [
 export function Features() {
   return (
     <section id="features" className="relative py-24 sm:py-32">
-      {/* Subtle background pattern */}
-      <div className="pointer-events-none absolute inset-0 bg-grid-pattern" />
-
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="mx-auto max-w-2xl text-center animate-fade-up">

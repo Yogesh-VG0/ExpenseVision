@@ -29,14 +29,12 @@ export function Hero() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden pt-32 pb-24 sm:pt-40 sm:pb-36">
+    <section className="relative overflow-hidden pt-32 pb-16 sm:pt-40 sm:pb-20">
       {/* Animated Background Effects */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-primary/15 blur-[100px] animate-float" />
         <div className="absolute -bottom-40 -left-40 h-[500px] w-[500px] rounded-full bg-accent/15 blur-[100px] animate-float" style={{ animationDelay: "3s" }} />
         <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px] animate-pulse-glow" />
-        {/* Grid pattern */}
-        <div className="absolute inset-0 bg-grid-pattern [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,black_40%,transparent_100%)]" />
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
