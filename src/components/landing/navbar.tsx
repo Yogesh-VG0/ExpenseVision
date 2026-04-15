@@ -35,7 +35,7 @@ const navLinks = [
 export function Navbar() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const { canInstall, install } = usePWAInstall();
+  const { isInstalled, install } = usePWAInstall();
   const [user, setUser] = useState<{
     email: string;
     full_name: string | null;
@@ -124,7 +124,7 @@ export function Navbar() {
 
         {/* Desktop CTA */}
         <div className="hidden items-center gap-3 md:flex">
-          {canInstall && (
+          {!isInstalled && (
             <Button
               variant="ghost"
               size="sm"
@@ -208,7 +208,7 @@ export function Navbar() {
                 <span className="text-sm text-muted-foreground">Theme</span>
                 <ThemeToggle />
               </div>
-              {canInstall && (
+              {!isInstalled && (
                 <button
                   onClick={() => { setOpen(false); install(); }}
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"

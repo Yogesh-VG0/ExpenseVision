@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/telemetry";
+import { toast } from "sonner";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -10,15 +11,15 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 interface PWAContextValue {
-  canInstall: boolean;
+  canInstallNatively: boolean;
+  isInstalled: boolean;
   install: () => Promise<void>;
-  dismiss: () => void;
 }
 
 const PWAContext = createContext<PWAContextValue>({
-  canInstall: false,
+  canInstallNatively: false,
+  isInstalled: false,
   install: async () => {},
-  dismiss: () => {},
 });
 
 export function usePWAInstall() {
@@ -28,6 +29,19 @@ export function usePWAInstall() {
 export function PWAProvider({ children }: { children: ReactNode }) {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const standalone = window.matchMedia("(display-mode: standalone)").matches;
+    const iosStandalone = "standalone" in navigator && (navigator as Record<string, unknown>).standalone === true;
+    return standalone || iosStandalone;
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia("(display-mode: standalone)");
+    const handler = (e: MediaQueryListEvent) => setIsInstalled(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   useEffect(() => {
     let visibilityHandler: (() => void) | null = null;
@@ -47,14 +61,19 @@ export function PWAProvider({ children }: { children: ReactNode }) {
         .catch((err) => console.error("SW registration failed:", err));
     }
 
-    const handler = (e: Event) => {
+    const promptHandler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
-    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("beforeinstallprompt", promptHandler);
+
+    const installedHandler = () => setIsInstalled(true);
+    window.addEventListener("appinstalled", installedHandler);
+
     return () => {
-      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("beforeinstallprompt", promptHandler);
+      window.removeEventListener("appinstalled", installedHandler);
       if (visibilityHandler) {
         document.removeEventListener("visibilitychange", visibilityHandler);
       }
@@ -104,20 +123,42 @@ export function PWAProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const install = useCallback(async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    await trackEvent(
-      outcome === "accepted" ? "install_prompt_accepted" : "install_prompt_dismissed",
-      { surface: "nav_item" }
-    );
-    setDeferredPrompt(null);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      await trackEvent(
+        outcome === "accepted" ? "install_prompt_accepted" : "install_prompt_dismissed",
+        { surface: "nav_item" }
+      );
+      setDeferredPrompt(null);
+      return;
+    }
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isFirefox = /firefox/i.test(navigator.userAgent);
+
+    if (isIOS || isSafari) {
+      toast("Install ExpenseVision", {
+        description: "Tap the Share button in Safari, then \"Add to Home Screen\".",
+        duration: 8000,
+      });
+    } else if (isFirefox) {
+      toast("Install ExpenseVision", {
+        description: "Open the browser menu (\u22EE) and look for \"Install\" or \"Add to Home Screen\".",
+        duration: 8000,
+      });
+    } else {
+      toast("Install ExpenseVision", {
+        description: "Open the browser menu (\u22EE) and select \"Install app\" or \"Add to Home Screen\".",
+        duration: 8000,
+      });
+    }
+    await trackEvent("install_manual_instructions_shown", { surface: "nav_item" });
   }, [deferredPrompt]);
 
-  const canInstall = !!deferredPrompt;
-
   return (
-    <PWAContext value={{ canInstall, install, dismiss: install }}>
+    <PWAContext value={{ canInstallNatively: !!deferredPrompt, isInstalled, install }}>
       {children}
     </PWAContext>
   );

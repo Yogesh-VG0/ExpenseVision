@@ -57,7 +57,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const { canInstall, install } = usePWAInstall();
+  const { isInstalled, install } = usePWAInstall();
   const isImmersiveCapture = !isDemo && pathname === "/receipts/capture";
   const visibleNavItems = isDemo
     ? navItems.filter((item) => item.href !== "/imports")
@@ -152,7 +152,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
 
       {/* Settings + Install */}
       <div className="space-y-1 border-t border-border p-3">
-        {canInstall && (
+        {!isInstalled && (
           <button
             onClick={() => { if (mobile) setMobileOpen(false); install(); }}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"

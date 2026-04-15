@@ -9,6 +9,7 @@ export const TELEMETRY_EVENTS = [
   "share_import_failure",
   "install_prompt_accepted",
   "install_prompt_dismissed",
+  "install_manual_instructions_shown",
   "push_subscription_accepted",
   "push_subscription_failed",
   "offline_queue_enqueue",
