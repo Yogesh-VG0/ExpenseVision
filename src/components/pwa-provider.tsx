@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/telemetry";
@@ -11,10 +11,28 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-export function PWAProvider() {
+interface PWAContextValue {
+  canInstall: boolean;
+  install: () => Promise<void>;
+  dismiss: () => void;
+}
+
+const PWAContext = createContext<PWAContextValue>({
+  canInstall: false,
+  install: async () => {},
+  dismiss: () => {},
+});
+
+export function usePWAInstall() {
+  return useContext(PWAContext);
+}
+
+export function PWAProvider({ children }: { children: ReactNode }) {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
+  const pathname = usePathname();
+  const isLandingPage = pathname === "/";
 
   useEffect(() => {
     let timeoutId: number | null = null;
@@ -53,7 +71,6 @@ export function PWAProvider() {
     };
   }, []);
 
-  // ── launchQueue consumer (file_handlers progressive enhancement) ──
   const router = useRouter();
   useEffect(() => {
     if (
@@ -67,7 +84,6 @@ export function PWAProvider() {
           try {
             const fileHandle = launchParams.files[0];
             const file = await fileHandle.getFile();
-            // Store as data URL in sessionStorage for capture page to pick up
             const reader = new FileReader();
             reader.onload = () => {
               try {
@@ -81,7 +97,7 @@ export function PWAProvider() {
                   })
                 );
               } catch {
-                // sessionStorage quota exceeded — navigate anyway
+                // sessionStorage quota exceeded
               }
               router.push("/receipts/capture");
             };
@@ -90,7 +106,6 @@ export function PWAProvider() {
             };
             reader.readAsDataURL(file);
           } catch {
-            // Fallback: navigate without the file
             router.push("/receipts/capture");
           }
         }
@@ -98,7 +113,7 @@ export function PWAProvider() {
     }
   }, [router]);
 
-  const handleInstall = useCallback(async () => {
+  const install = useCallback(async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
@@ -106,11 +121,7 @@ export function PWAProvider() {
       outcome === "accepted" ? "install_prompt_accepted" : "install_prompt_dismissed",
       { surface: "install_banner" }
     );
-    if (outcome === "accepted") {
-      setShowBanner(false);
-    } else {
-      setShowBanner(false);
-    }
+    setShowBanner(false);
     setDeferredPrompt(null);
   }, [deferredPrompt]);
 
@@ -120,40 +131,29 @@ export function PWAProvider() {
     setDeferredPrompt(null);
   }, []);
 
-  if (!showBanner) return null;
+  const canInstall = showBanner && !!deferredPrompt;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md animate-fade-up rounded-xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur-md sm:left-auto sm:right-4">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          <Download className="h-5 w-5 text-primary" />
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-medium">Install ExpenseVision</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Add to your home screen for quick access and an app-like experience.
-          </p>
-          <div className="mt-2 flex gap-2">
-            <Button size="sm" onClick={handleInstall} className="h-7 text-xs">
+    <PWAContext value={{ canInstall, install, dismiss }}>
+      {children}
+      {/* Only show floating banner on landing page where there's no sidebar */}
+      {isLandingPage && canInstall && (
+        <div className="fixed bottom-4 right-4 z-50 w-72 animate-fade-up rounded-xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <Download className="h-4 w-4 shrink-0 text-primary" />
+            <p className="flex-1 text-xs font-medium">Install as app</p>
+            <Button size="sm" onClick={install} className="h-6 px-2 text-[10px]">
               Install
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
+            <button
               onClick={dismiss}
-              className="h-7 text-xs"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
             >
-              Not now
-            </Button>
+              <X className="h-3 w-3" />
+            </button>
           </div>
         </div>
-        <button
-          onClick={dismiss}
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
+      )}
+    </PWAContext>
   );
 }

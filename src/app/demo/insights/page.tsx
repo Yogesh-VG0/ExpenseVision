@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CURRENCY_FORMATTER } from "@/lib/constants";
+import { useCurrency } from "@/components/currency-provider";
+
 import { DEMO_EXPENSES, DEMO_AI_INSIGHTS } from "@/lib/demo-data";
 import type { Expense } from "@/lib/types";
 
@@ -87,6 +88,7 @@ const DEMO_INSIGHTS = [
 ];
 
 export default function DemoInsightsPage() {
+  const { format } = useCurrency();
   const expenses = DEMO_EXPENSES as unknown as Expense[];
 
   /* Quick Stats computed from demo data */
@@ -173,7 +175,7 @@ export default function DemoInsightsPage() {
                   </p>
                   <p className="text-sm text-primary">
                     {quickStats.topCategory
-                      ? CURRENCY_FORMATTER.format(quickStats.topCategory.amount)
+                      ? format(quickStats.topCategory.amount)
                       : "—"}
                   </p>
                 </div>
@@ -196,7 +198,7 @@ export default function DemoInsightsPage() {
                   </p>
                   <p className="text-sm text-accent">
                     {quickStats.topDay
-                      ? CURRENCY_FORMATTER.format(quickStats.topDay.amount)
+                      ? format(quickStats.topDay.amount)
                       : "—"}
                   </p>
                 </div>
@@ -215,7 +217,7 @@ export default function DemoInsightsPage() {
                     Avg Daily Spend
                   </p>
                   <p className="text-lg font-bold">
-                    {CURRENCY_FORMATTER.format(quickStats.avgDaily)}
+                    {format(quickStats.avgDaily)}
                   </p>
                   <p className="text-sm text-muted-foreground">this month</p>
                 </div>
@@ -234,7 +236,7 @@ export default function DemoInsightsPage() {
                     Recurring
                   </p>
                   <p className="text-lg font-bold">
-                    {CURRENCY_FORMATTER.format(quickStats.recurring)}
+                    {format(quickStats.recurring)}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {quickStats.recurringCount} subscriptions

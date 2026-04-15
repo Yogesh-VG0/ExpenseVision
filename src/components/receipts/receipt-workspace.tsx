@@ -997,20 +997,14 @@ export function ReceiptWorkspace({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              <Camera className="mr-2 inline-block h-6 w-6 text-primary" />
-              Receipt Scanner
-            </h1>
-            <p className="mt-1 text-muted-foreground">
-              Capture or upload a receipt, review the extracted fields, and save with confidence.
-            </p>
-          </div>
-          <Button variant="outline" render={<Link href="/receipts/capture" />}>
-            <Camera className="mr-2 h-4 w-4" />
-            Open capture mode
-          </Button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            <Camera className="mr-2 inline-block h-6 w-6 text-primary" />
+            Receipt Scanner
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Capture or upload a receipt, review the extracted fields, and save with confidence.
+          </p>
         </div>
       )}
 
@@ -1083,27 +1077,35 @@ export function ReceiptWorkspace({
               className="hidden"
             />
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 to-accent/20">
-              <Camera className="h-9 w-9 text-primary sm:h-10 sm:w-10" />
+              <Upload className="hidden h-9 w-9 text-primary md:block md:h-10 md:w-10" />
+              <Camera className="h-9 w-9 text-primary md:hidden sm:h-10 sm:w-10" />
             </div>
             <p className="mt-4 text-xl font-semibold sm:text-2xl">
               {isCaptureMode
                 ? activeShareDraft
                   ? "Review a shared receipt"
                   : "Capture a receipt"
-                : "Scan or upload a receipt"}
+                : "Upload a receipt"}
             </p>
-            <p className="mt-2 max-w-md text-sm text-muted-foreground sm:text-base">
+            <p className="mt-2 max-w-md text-sm text-muted-foreground sm:text-base md:hidden">
               {isCaptureMode
                 ? activeShareDraft
-                  ? "We’ll continue from the file you shared into ExpenseVision. You can still switch to the camera or upload a different photo or PDF below."
-                  : "Open your camera on supported devices, or import a photo or PDF when that works better."
-                : "Camera-first on supported devices, with image and PDF fallback everywhere else."}
+                  ? "We’ll continue from the file you shared. Switch to camera or upload a different file below."
+                  : "Open your camera or import a photo or PDF."
+                : "Take a photo or choose a file from your device."}
             </p>
-            <div className="mt-6 grid w-full max-w-xl gap-3 sm:grid-cols-2">
+            <p className="mt-2 hidden max-w-md text-sm text-muted-foreground sm:text-base md:block">
+              {isCaptureMode
+                ? activeShareDraft
+                  ? "We’ll continue from the file you shared. Upload a different photo or PDF below if needed."
+                  : "Upload a receipt photo or PDF. Drag and drop also works."
+                : "Drop a receipt image or PDF here, or click to browse your files."}
+            </p>
+            <div className="mt-6 grid w-full max-w-xl gap-3 sm:grid-cols-2 md:grid-cols-1 md:max-w-sm">
               <Button
                 type="button"
                 size="lg"
-                className="h-14 text-base sm:h-16"
+                className="h-14 text-base sm:h-16 md:hidden"
                 onClick={() => cameraInputRef.current?.click()}
               >
                 <Camera className="mr-2 h-5 w-5" />
@@ -1111,7 +1113,6 @@ export function ReceiptWorkspace({
               </Button>
               <Button
                 type="button"
-                variant="outline"
                 size="lg"
                 className="h-14 text-base sm:h-16"
                 onClick={() => libraryInputRef.current?.click()}
@@ -1120,12 +1121,15 @@ export function ReceiptWorkspace({
                 Upload photo or PDF
               </Button>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground sm:text-sm">
+            <p className="mt-3 text-xs text-muted-foreground sm:text-sm md:hidden">
               {isCaptureMode
-                ? "If ExpenseVision doesn’t show up in your share sheet, use the camera or upload actions here instead."
-                : "Drag and drop also works on desktop browsers."}
+                ? "If ExpenseVision doesn’t appear in your share sheet, use the actions here instead."
+                : "You can also drag and drop files."}
             </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <p className="mt-3 hidden text-xs text-muted-foreground sm:text-sm md:block">
+              Drag and drop supported. JPG, PNG, WebP, GIF, and PDF up to 10 MB.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2 md:hidden">
               <Badge variant="secondary" className="rounded-full px-3 py-1">
                 JPG, PNG, WebP, GIF
               </Badge>

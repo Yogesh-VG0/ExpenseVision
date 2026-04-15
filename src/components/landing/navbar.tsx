@@ -42,9 +42,12 @@ export function Navbar() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      if (!authUser) return;
-      // Fetch profile for display name and avatar
+
+    const loadUser = (authUser: { id: string; email?: string | null; user_metadata?: Record<string, string> } | null) => {
+      if (!authUser) {
+        setUser(null);
+        return;
+      }
       supabase
         .from("profiles")
         .select("full_name, avatar_url")
@@ -52,13 +55,25 @@ export function Navbar() {
         .single()
         .then(({ data }) => {
           const name = data?.full_name?.trim() || authUser.user_metadata?.full_name?.trim() || null;
+          const avatar =
+            data?.avatar_url ||
+            authUser.user_metadata?.avatar_url ||
+            authUser.user_metadata?.picture ||
+            null;
           setUser({
             email: authUser.email ?? "",
             full_name: name || null,
-            avatar_url: data?.avatar_url ?? null,
+            avatar_url: avatar,
           });
         });
+    };
+
+    supabase.auth.getUser().then(({ data: { user: authUser } }) => loadUser(authUser));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      loadUser(session?.user ?? null);
     });
+    return () => subscription.unsubscribe();
   }, []);
 
   const isSignedIn = !!user;

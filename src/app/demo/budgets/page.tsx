@@ -33,7 +33,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { CURRENCY_FORMATTER, CATEGORY_COLORS } from "@/lib/constants";
+import { useCurrency } from "@/components/currency-provider";
+import { CATEGORY_COLORS } from "@/lib/constants";
 import { DEMO_BUDGETS, DEMO_EXPENSES } from "@/lib/demo-data";
 
 const DEMO_TOAST_TITLE = "Sign up to save changes!";
@@ -44,6 +45,7 @@ function showDemoToast() {
 }
 
 export default function DemoBudgetsPage() {
+  const { format } = useCurrency();
   const budgets = DEMO_BUDGETS;
 
   const spending = useMemo(() => {
@@ -103,7 +105,7 @@ export default function DemoBudgetsPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Budget</p>
                 <p className="text-2xl font-bold">
-                  {CURRENCY_FORMATTER.format(totalLimit)}
+                  {format(totalLimit)}
                 </p>
               </div>
             </div>
@@ -114,7 +116,7 @@ export default function DemoBudgetsPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Spent</p>
                 <p className="text-2xl font-bold">
-                  {CURRENCY_FORMATTER.format(totalSpent)}
+                  {format(totalSpent)}
                 </p>
               </div>
             </div>
@@ -137,7 +139,7 @@ export default function DemoBudgetsPage() {
                     totalRemaining < 0 ? "text-red-500" : ""
                   }`}
                 >
-                  {CURRENCY_FORMATTER.format(totalRemaining)}
+                  {format(totalRemaining)}
                 </p>
               </div>
             </div>
@@ -221,8 +223,8 @@ export default function DemoBudgetsPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
-                      {CURRENCY_FORMATTER.format(spent)} /{" "}
-                      {CURRENCY_FORMATTER.format(budget.monthly_limit)}
+                      {format(spent)} /{" "}
+                      {format(budget.monthly_limit)}
                     </span>
                     <span
                       className={`font-semibold ${
@@ -252,8 +254,8 @@ export default function DemoBudgetsPage() {
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>
                     {isOverBudget
-                      ? `Over by ${CURRENCY_FORMATTER.format(spent - budget.monthly_limit)}`
-                      : `${CURRENCY_FORMATTER.format(budget.monthly_limit - spent)} remaining`}
+                      ? `Over by ${format(spent - budget.monthly_limit)}`
+                      : `${format(budget.monthly_limit - spent)} remaining`}
                   </span>
                 </div>
               </CardContent>

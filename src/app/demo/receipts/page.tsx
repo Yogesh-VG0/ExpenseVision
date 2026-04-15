@@ -31,7 +31,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CURRENCY_FORMATTER, CATEGORY_COLORS } from "@/lib/constants";
+import { useCurrency } from "@/components/currency-provider";
+import { CATEGORY_COLORS } from "@/lib/constants";
 import { DEMO_EXPENSES } from "@/lib/demo-data";
 
 const DEMO_TOAST_TITLE = "Sign up to scan receipts!";
@@ -62,6 +63,7 @@ const DEMO_RECEIPTS = DEMO_EXPENSES.slice(0, 8).map((e, i) => ({
 }));
 
 export default function DemoReceiptsPage() {
+  const { format } = useCurrency();
   const [selectedReceipt, setSelectedReceipt] = useState<(typeof DEMO_RECEIPTS)[0] | null>(null);
 
   return (
@@ -202,7 +204,7 @@ export default function DemoReceiptsPage() {
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-lg font-bold text-primary">
-                        {CURRENCY_FORMATTER.format(receipt.amount)}
+                        {format(receipt.amount)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -239,7 +241,7 @@ export default function DemoReceiptsPage() {
               <div className="space-y-3 rounded-lg border border-accent/20 bg-accent/5 p-4">
                 {[
                   { label: "Vendor", value: selectedReceipt.vendor },
-                  { label: "Amount", value: CURRENCY_FORMATTER.format(selectedReceipt.amount), highlight: true },
+                  { label: "Amount", value: format(selectedReceipt.amount), highlight: true },
                   { label: "Date", value: selectedReceipt.date },
                   { label: "Category", value: selectedReceipt.category },
                   { label: "Description", value: selectedReceipt.description },

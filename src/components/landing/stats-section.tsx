@@ -86,8 +86,8 @@ function FeatureHighlight({
 
 export function StatsSection() {
   return (
-    <section className="relative py-16 sm:py-20">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
+    <section className="relative -mt-10 pt-0 pb-16 sm:-mt-14 sm:pb-20">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background via-primary/[0.03] to-transparent" />
 
       <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">

@@ -95,9 +95,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider defaultTheme="dark">
-          {children}
+          <PWAProvider>
+            {children}
+          </PWAProvider>
           <Toaster richColors position="top-right" />
-          <PWAProvider />
         </ThemeProvider>
       </body>
     </html>

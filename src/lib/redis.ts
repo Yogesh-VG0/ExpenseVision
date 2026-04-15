@@ -1,6 +1,8 @@
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
 
+const ephemeralCache = new Map<string, number>();
+
 // Redis client — disabled gracefully if env vars are not set
 const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
@@ -16,6 +18,7 @@ export const aiRateLimit = redis
       redis,
       limiter: Ratelimit.slidingWindow(20, "60 s"),
       prefix: "ratelimit:ai",
+      ephemeralCache,
     })
   : null;
 
@@ -65,6 +68,7 @@ export const telemetryRateLimit = redis
       redis,
       limiter: Ratelimit.slidingWindow(120, "60 s"),
       prefix: "ratelimit:telemetry",
+      ephemeralCache,
     })
   : null;
 

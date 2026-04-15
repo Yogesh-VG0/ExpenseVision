@@ -28,10 +28,12 @@ import {
   ChevronDown,
   Bell,
   FileUp,
+  Download,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CurrencyProvider } from "@/components/currency-provider";
+import { usePWAInstall } from "@/components/pwa-provider";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -55,6 +57,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const { canInstall, install, dismiss } = usePWAInstall();
   const isImmersiveCapture = !isDemo && pathname === "/receipts/capture";
   const visibleNavItems = isDemo
     ? navItems.filter((item) => item.href !== "/imports")
@@ -146,6 +149,24 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
           );
         })}
       </nav>
+
+      {/* PWA install prompt */}
+      {canInstall && (
+        <div className="mx-3 mb-1 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+          <Download className="h-4 w-4 shrink-0 text-primary" />
+          <span className="flex-1 text-xs font-medium">Install app</span>
+          <button
+            onClick={install}
+            className="rounded bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Install
+          </button>
+          <button onClick={dismiss} className="text-muted-foreground hover:text-foreground">
+            <span className="sr-only">Dismiss</span>
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* Settings link */}
       <div className="border-t border-border p-3">
@@ -262,7 +283,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
           )}
           style={isImmersiveCapture ? undefined : { animationDelay: "100ms" }}
         >
-          {isDemo ? children : <CurrencyProvider>{children}</CurrencyProvider>}
+          <CurrencyProvider>{children}</CurrencyProvider>
         </main>
       </div>
     </div>

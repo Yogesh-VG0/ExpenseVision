@@ -37,7 +37,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { CURRENCY_FORMATTER, DATE_FORMATTER, CATEGORY_COLORS } from "@/lib/constants";
+import { useCurrency } from "@/components/currency-provider";
+import { DATE_FORMATTER, CATEGORY_COLORS } from "@/lib/constants";
 import { CATEGORIES } from "@/lib/types";
 import { DEMO_EXPENSES } from "@/lib/demo-data";
 import type { Expense } from "@/lib/types";
@@ -52,6 +53,7 @@ function showDemoToast() {
 }
 
 export default function DemoExpensesPage() {
+  const { format } = useCurrency();
   const expenses = DEMO_EXPENSES as unknown as Expense[];
 
   const [search, setSearch] = useState("");
@@ -213,7 +215,7 @@ export default function DemoExpensesPage() {
               Total Amount
             </p>
             <p className="text-2xl font-bold mt-1 text-primary">
-              {CURRENCY_FORMATTER.format(stats.total)}
+              {format(stats.total)}
             </p>
           </CardContent>
         </Card>
@@ -223,7 +225,7 @@ export default function DemoExpensesPage() {
               Average
             </p>
             <p className="text-2xl font-bold mt-1">
-              {CURRENCY_FORMATTER.format(stats.average)}
+              {format(stats.average)}
             </p>
           </CardContent>
         </Card>
@@ -283,7 +285,7 @@ export default function DemoExpensesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
-                      {CURRENCY_FORMATTER.format(expense.amount)}
+                      {format(expense.amount)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -342,7 +344,7 @@ export default function DemoExpensesPage() {
 
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="font-semibold tabular-nums">
-                      {CURRENCY_FORMATTER.format(expense.amount)}
+                      {format(expense.amount)}
                     </span>
                     <DropdownMenu>
                       <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="size-8" />}>

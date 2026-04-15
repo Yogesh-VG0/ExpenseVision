@@ -22,10 +22,14 @@ export function Hero() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setIsSignedIn(!!user);
     });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsSignedIn(!!session?.user);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   return (
-    <section className="relative overflow-hidden pt-32 pb-20 sm:pt-40 sm:pb-32">
+    <section className="relative overflow-hidden pt-32 pb-24 sm:pt-40 sm:pb-36">
       {/* Animated Background Effects */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-primary/15 blur-[100px] animate-float" />
