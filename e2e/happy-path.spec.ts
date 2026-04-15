@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * Minimal Chromium happy-path E2E: Sign in → Capture receipt → Review → Save → Verify in history.
+ * Minimal Chromium happy-path E2E: Sign in → Add manual expense → Verify in expense list.
+ *
+ * This test covers the manual expense creation flow, not the receipt OCR flow.
+ * Receipt OCR E2E is currently untestable in Playwright without a real AI provider
+ * and file-upload mocking. If receipt E2E is needed, it should use a separate
+ * test file with appropriate fixtures.
  *
  * Prerequisites:
  * - A running dev server (or Playwright will spin one up via playwright.config.ts)
@@ -14,10 +19,10 @@ import { test, expect } from "@playwright/test";
 const email = process.env.E2E_TEST_EMAIL;
 const password = process.env.E2E_TEST_PASSWORD;
 
-test.describe("Receipt capture happy path", () => {
+test.describe("Manual expense happy path", () => {
   test.skip(!email || !password, "E2E_TEST_EMAIL and E2E_TEST_PASSWORD required");
 
-  test("sign in → add expense → verify in history", async ({ page }) => {
+  test("sign in → add expense → verify in expense list", async ({ page }) => {
     // 1. Sign in
     await page.goto("/login");
     await page.fill('input[type="email"]', email!);
@@ -33,42 +38,40 @@ test.describe("Receipt capture happy path", () => {
     await expect(page).toHaveURL(/\/expenses/);
 
     // 3. Add a manual expense
-    // Look for the add expense form or button
     const addButton = page.locator("text=Add Expense").first();
-    if (await addButton.isVisible()) {
-      await addButton.click();
-    }
+    await expect(addButton).toBeVisible({ timeout: 5_000 });
+    await addButton.click();
 
-    // Fill expense form
+    // Fill expense form fields
     const vendorInput = page.locator('input[name="vendor"], input[placeholder*="vendor" i]').first();
-    if (await vendorInput.isVisible()) {
-      await vendorInput.fill("E2E Test Vendor");
-    }
+    await expect(vendorInput).toBeVisible({ timeout: 3_000 });
+    await vendorInput.fill("E2E Test Vendor");
 
     const amountInput = page.locator('input[name="amount"], input[placeholder*="amount" i], input[type="number"]').first();
-    if (await amountInput.isVisible()) {
-      await amountInput.fill("12.34");
-    }
+    await expect(amountInput).toBeVisible({ timeout: 3_000 });
+    await amountInput.fill("12.34");
 
     const descInput = page.locator('input[name="description"], textarea[name="description"]').first();
-    if (await descInput.isVisible()) {
+    if (await descInput.isVisible({ timeout: 1_000 }).catch(() => false)) {
       await descInput.fill("E2E automated test expense");
     }
 
     // Submit
     const saveBtn = page.locator('button:has-text("Save")').first();
-    if (await saveBtn.isVisible()) {
-      await saveBtn.click();
-      // Wait for success indication
-      await page.waitForTimeout(2000);
-    }
+    await expect(saveBtn).toBeVisible({ timeout: 3_000 });
+    await saveBtn.click();
 
-    // 4. Verify the expense appears
-    await page.goto("/expenses");
+    // Wait for save to complete (toast or navigation)
     await page.waitForTimeout(2000);
 
-    const pageText = await page.textContent("body");
-    // At minimum, the expenses page should load
-    expect(pageText).toBeTruthy();
+    // 4. Verify the expense appears in the list
+    await page.goto("/expenses");
+    await page.waitForLoadState("networkidle");
+
+    // Check that the page loaded with content
+    const pageContent = await page.textContent("body");
+    expect(pageContent).toBeTruthy();
+    // The vendor name should appear in the expense list
+    expect(pageContent).toContain("E2E Test Vendor");
   });
 });

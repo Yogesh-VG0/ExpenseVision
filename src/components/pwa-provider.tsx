@@ -62,10 +62,37 @@ export function PWAProvider() {
       typeof (window as Record<string, unknown>).launchQueue === "object"
     ) {
       const lq = (window as unknown as { launchQueue: { setConsumer(cb: (params: { files: Array<{ getFile(): Promise<File> }> }) => void): void } }).launchQueue;
-      lq.setConsumer((launchParams) => {
+      lq.setConsumer(async (launchParams) => {
         if (launchParams.files?.length > 0) {
-          // Navigate to capture — the file will be handled by the capture flow
-          router.push("/receipts/capture");
+          try {
+            const fileHandle = launchParams.files[0];
+            const file = await fileHandle.getFile();
+            // Store as data URL in sessionStorage for capture page to pick up
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                sessionStorage.setItem(
+                  "ev_launch_file",
+                  JSON.stringify({
+                    name: file.name,
+                    type: file.type,
+                    dataUrl: reader.result,
+                    timestamp: Date.now(),
+                  })
+                );
+              } catch {
+                // sessionStorage quota exceeded — navigate anyway
+              }
+              router.push("/receipts/capture");
+            };
+            reader.onerror = () => {
+              router.push("/receipts/capture");
+            };
+            reader.readAsDataURL(file);
+          } catch {
+            // Fallback: navigate without the file
+            router.push("/receipts/capture");
+          }
         }
       });
     }

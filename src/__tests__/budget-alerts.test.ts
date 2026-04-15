@@ -13,16 +13,33 @@ describe("budget-alerts", () => {
 
   it("returns empty alerts when no budget exists", async () => {
     const mod = await import("@/lib/budget-alerts");
+
+    // The function now queries profiles first (for preferences), then budgets.
+    let fromCallCount = 0;
     const mockSupabase = {
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
+      from: vi.fn(() => {
+        fromCallCount++;
+        if (fromCallCount === 1) {
+          // profiles query: select → eq → maybeSingle
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn(() => ({ data: null })),
+              })),
+            })),
+          };
+        }
+        // budgets query: select → eq → eq → maybeSingle
+        return {
+          select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              maybeSingle: vi.fn(() => ({ data: null })),
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn(() => ({ data: null })),
+              })),
             })),
           })),
-        })),
-      })),
+        };
+      }),
     };
 
     const result = await mod.checkBudgetAlerts(

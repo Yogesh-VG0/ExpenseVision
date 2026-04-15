@@ -33,6 +33,7 @@ export default async function SettingsPage() {
         full_name: user.user_metadata?.full_name ?? null,
         avatar_url: user.user_metadata?.avatar_url ?? null,
         currency: "USD",
+        notification_preferences: null,
         created_at: user.created_at,
       };
 

@@ -72,13 +72,16 @@ The PWA integrates an offline-first architecture for expense creation:
 
 ## Phase E Notifications & Alerts Included
 
-A robust, user-configurable notification system keeps budgets on track:
+An in-app notification system keeps budgets on track:
 
-- VAPID Push Subscription capabilities for opt-in browser/OS push notifications
 - Automatic Budget Alerts triggered at 80% and 100% of monthly spending limits
 - Weekly summary report generation
 - In-app notification center (`/notifications`) with unread badges and mark-as-read functionality
 - Persistent user notification preferences in the Supabase `profiles` table
+- Budget alerts and weekly summaries respect user opt-out preferences
+- VAPID Push Subscription UI for opt-in browser push (capability-gated)
+
+> **Push limitation:** Push subscription storage and service worker handlers are implemented. Server-side push delivery (using `web-push` to send notifications to device endpoints) is not yet implemented. The in-app notification center is the primary supported notification experience.
 
 ## Phase F Data Quality Included
 
@@ -103,9 +106,11 @@ Bulk transaction intake supports easy onboarding:
 
 Deep OS integration through advanced manifest capabilities:
 
-- `file_handlers` support enabling users to open image/PDF files directly into the ExpenseVision PWA on supported desktop OSs
-- `launchQueue` consumption in the React application shell for seamless file routing
+- `file_handlers` support enabling users to open image/PDF files directly into the ExpenseVision capture flow on supported desktop OS (Chromium only)
+- `launchQueue` consumption that passes opened files into the receipt capture pipeline via sessionStorage
 - Pre-configured Web App shortcuts
+
+> **Platform note:** File handlers and launchQueue are Chromium desktop-only progressive enhancements. On unsupported browsers/platforms, the capture flow remains fully functional through manual file selection.
 
 ## Phase I Testing & E2E framework
 
@@ -113,9 +118,15 @@ Test coverage and pipelines have been significantly expanded:
 
 - 69 deterministic unit tests across 11 test files covering offline mechanics, duplicate detection, string normalization, and more
 - Clean strict-mode TypeScript baseline (`tsc --noEmit`)
-- Complete Playwright configuration for E2E user flow tests (`e2e/happy-path.spec.ts`)
+- Playwright configuration for E2E manual expense flow tests (`e2e/happy-path.spec.ts`)
+
+> **E2E scope note:** The current Playwright spec covers sign-in → manual expense creation → verification. Receipt OCR E2E requires real AI provider credentials and is not covered by the current spec.
 
 ## Local Setup
+
+See `docs/setup.md` for a complete walkthrough.
+
+Quick start:
 
 1. Install dependencies.
 
@@ -127,7 +138,7 @@ npm install
 
 3. Run the Supabase SQL migrations in `supabase/migrations/`.
 
-4. Generate VAPID keys for local Push Notification testing (`npx web-push generate-vapid-keys`) and add them to `.env.local`.
+4. Optionally generate VAPID keys for push subscription UI testing (`npx web-push generate-vapid-keys`) and add them to `.env.local`.
 
 5. Create a private `receipts` storage bucket in Supabase.
 
@@ -159,6 +170,11 @@ Optional for rate limiting:
 
 - `UPSTASH_REDIS_REST_URL`
 - `UPSTASH_REDIS_REST_TOKEN`
+
+Optional for push subscription UI:
+
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
 
 ## Supabase Notes
 
@@ -197,6 +213,12 @@ When Web Share Target is supported in an installed app, the flow can also begin 
 3. `/receipts/capture` resumes from that stored receipt path, refreshes preview access when possible, runs OCR, and opens the same review UI.
 4. Refresh/reopen reuses local resume state so the user does not have to repeat the import handoff.
 
+When file handlers are supported (Chromium desktop), the flow can also begin with:
+
+1. User opens a receipt image or PDF file with ExpenseVision from the OS file picker.
+2. The `launchQueue` consumer reads the file, stores it in sessionStorage, and navigates to `/receipts/capture`.
+3. The capture page reads the file from sessionStorage and processes it through the normal capture flow.
+
 ## Telemetry
 
 The app includes a lightweight telemetry abstraction in `src/lib/telemetry.ts` and a server ingestion route at `src/app/api/telemetry/route.ts`.
@@ -206,6 +228,7 @@ Current tracked events:
 - OCR start, success, and failure
 - expense save success and failure
 - install prompt accepted and dismissed
+- push subscription accepted and failed
 
 The abstraction is intentionally simple so a future analytics provider can be added without rewriting product flows.
 
@@ -244,7 +267,9 @@ Latest local verification completed for this phase:
 - Client-side optimization currently targets large JPEG and WebP photos. PNG, GIF, and PDF uploads are preserved without attempted recompression.
 - Signed receipt access is refreshed through authenticated API calls; if the underlying storage object is gone, the UI offers a recovery path instead of pretending the image still exists.
 - PDF receipts are supported for upload and OCR processing, but preview availability depends on browser file handling and the current client UI.
+- File handlers and launchQueue are Chromium desktop-only. On other platforms, users open files through the standard capture flow.
+- Background Sync is Chromium-only. Other browsers degrade to the manual retry UI in the `PendingQueuePanel`.
 
 ## Architecture Reference
 
-See `docs/architecture.md` for a concise architecture overview of the current app, the hardened receipt flow, and the dedicated mobile capture route.
+See `docs/architecture.md` for a concise architecture overview of the current app, and `docs/setup.md` for local setup and verification instructions.

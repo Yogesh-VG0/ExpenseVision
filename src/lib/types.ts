@@ -56,12 +56,19 @@ export interface AIInsight {
   created_at: string;
 }
 
+export interface NotificationPreferences {
+  budget_alerts: boolean;
+  weekly_summary: boolean;
+  push_enabled: boolean;
+}
+
 export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
   avatar_url: string | null;
   currency: string;
+  notification_preferences: NotificationPreferences | null;
   created_at: string;
 }
 

@@ -103,14 +103,10 @@ export function SettingsClient({ profile }: SettingsClientProps) {
   const [currency, setCurrency] = useState(profile.currency ?? "USD");
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [budgetAlerts, setBudgetAlerts] = useState(
-    (profile as unknown as Record<string, unknown>).notification_preferences
-      ? ((profile as unknown as Record<string, unknown>).notification_preferences as Record<string, boolean>)?.budget_alerts ?? true
-      : true
+    profile.notification_preferences?.budget_alerts ?? true
   );
   const [weeklySummary, setWeeklySummary] = useState(
-    (profile as unknown as Record<string, unknown>).notification_preferences
-      ? ((profile as unknown as Record<string, unknown>).notification_preferences as Record<string, boolean>)?.weekly_summary ?? false
-      : false
+    profile.notification_preferences?.weekly_summary ?? false
   );
   const [pushState, setPushState] = useState<PushCapabilityState>("unsupported");
   const [pushLoading, setPushLoading] = useState(false);
@@ -675,7 +671,7 @@ export function SettingsClient({ profile }: SettingsClientProps) {
           <Card className="border-border bg-background/60 backdrop-blur-xl">
             <CardHeader>
               <CardTitle>Notifications</CardTitle>
-              <CardDescription>Configure email notification preferences</CardDescription>
+              <CardDescription>Configure in-app notification preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">

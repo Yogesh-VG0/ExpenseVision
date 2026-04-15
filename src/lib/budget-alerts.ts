@@ -27,6 +27,18 @@ export async function checkBudgetAlerts(
 ): Promise<BudgetAlertResult> {
   const alerts: BudgetAlertResult["alerts"] = [];
 
+  // Respect user notification preferences — skip if budget_alerts is explicitly disabled
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("notification_preferences")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const prefs = profile?.notification_preferences as Record<string, boolean> | null;
+  if (prefs?.budget_alerts === false) {
+    return { alerts };
+  }
+
   // Get budget for this category
   const { data: budget } = await supabase
     .from("budgets")

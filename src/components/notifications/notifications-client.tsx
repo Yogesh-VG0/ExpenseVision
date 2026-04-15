@@ -30,7 +30,6 @@ interface Notification {
 const TYPE_ICONS: Record<string, typeof Bell> = {
   budget_warning: AlertTriangle,
   budget_exceeded: Wallet,
-  spending_spike: BarChart3,
   weekly_summary: BarChart3,
   import_complete: FileText,
   system: Info,
@@ -39,7 +38,6 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
 const TYPE_STYLES: Record<string, string> = {
   budget_warning: "text-amber-400",
   budget_exceeded: "text-red-400",
-  spending_spike: "text-orange-400",
   weekly_summary: "text-blue-400",
   import_complete: "text-emerald-400",
   system: "text-muted-foreground",

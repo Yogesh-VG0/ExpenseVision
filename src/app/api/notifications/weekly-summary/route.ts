@@ -14,6 +14,18 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Respect user notification preferences — skip if weekly_summary is explicitly disabled
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("notification_preferences")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const prefs = profile?.notification_preferences as Record<string, boolean> | null;
+    if (prefs?.weekly_summary === false) {
+      return NextResponse.json({ success: true, skipped: true });
+    }
+
     // Last 7 days of expenses
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);

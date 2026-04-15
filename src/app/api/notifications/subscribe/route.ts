@@ -29,13 +29,20 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    // Update profile preferences
+    // Merge push_enabled into existing notification preferences (preserve user choices)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("notification_preferences")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const existing = (profile?.notification_preferences as Record<string, boolean> | null) ?? {};
     await supabase
       .from("profiles")
       .update({
         notification_preferences: {
-          budget_alerts: true,
-          weekly_summary: false,
+          budget_alerts: existing.budget_alerts ?? true,
+          weekly_summary: existing.weekly_summary ?? false,
           push_enabled: true,
         },
       })

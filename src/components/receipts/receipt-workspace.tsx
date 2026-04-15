@@ -748,6 +748,41 @@ export function ReceiptWorkspace({
     [runOCR]
   );
 
+  // ── launchQueue file consumption (file_handlers progressive enhancement) ──
+  useEffect(() => {
+    if (!isCaptureMode || typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const raw = sessionStorage.getItem("ev_launch_file");
+      if (!raw) return;
+
+      sessionStorage.removeItem("ev_launch_file");
+      const parsed = JSON.parse(raw) as {
+        name: string;
+        type: string;
+        dataUrl: string;
+        timestamp: number;
+      };
+
+      // Only consume files stored within the last 60 seconds
+      if (Date.now() - parsed.timestamp > 60_000) return;
+
+      // Convert data URL back to File
+      const byteString = atob(parsed.dataUrl.split(",")[1]);
+      const mimeString = parsed.dataUrl.split(",")[0].split(":")[1].split(";")[0];
+      const ab = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) {
+        ab[i] = byteString.charCodeAt(i);
+      }
+      const file = new File([ab], parsed.name, { type: mimeString || parsed.type });
+      void handleFile(file, "file_picker");
+    } catch {
+      // Ignore corrupted or stale launch file data
+    }
+  }, [isCaptureMode, handleFile]);
+
   useEffect(() => {
     if (
       !isCaptureMode ||
