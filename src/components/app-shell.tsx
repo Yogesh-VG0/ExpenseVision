@@ -56,6 +56,9 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const isImmersiveCapture = !isDemo && pathname === "/receipts/capture";
+  const visibleNavItems = isDemo
+    ? navItems.filter((item) => item.href !== "/imports")
+    : navItems;
 
   const fetchUnreadCount = useCallback(async () => {
     if (isDemo) return;
@@ -115,7 +118,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
 
       {/* Nav Items */}
       <nav className="flex-1 space-y-1 p-3">
-        {navItems.map((item, index) => {
+        {visibleNavItems.map((item, index) => {
           const demoHref = `/demo${item.href === "/dashboard" ? "" : item.href}`;
           const href = isDemo ? demoHref : item.href;
           const isActive = isDemo

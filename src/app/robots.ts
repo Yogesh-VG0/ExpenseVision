@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
+import { getAppUrl } from "@/lib/app-url";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://expensevision.tech";
+const BASE_URL = getAppUrl();
 
 export default function robots(): MetadataRoute.Robots {
   return {

@@ -1,14 +1,22 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { OverviewCards } from "@/components/dashboard/overview-cards";
-import { ExpenseChart } from "@/components/dashboard/expense-chart";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
-import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";
 import { getDemoAnalytics, DEMO_EXPENSES } from "@/lib/demo-data";
 import type { Expense } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+
+const ExpenseChart = dynamic(
+  () => import("@/components/dashboard/expense-chart").then((mod) => mod.ExpenseChart),
+  { ssr: false }
+);
+const CategoryBreakdown = dynamic(
+  () => import("@/components/dashboard/category-breakdown").then((mod) => mod.CategoryBreakdown),
+  { ssr: false }
+);
 
 export default function DemoDashboardPage() {
   const analytics = useMemo(() => getDemoAnalytics(), []);

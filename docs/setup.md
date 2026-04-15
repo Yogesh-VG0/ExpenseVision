@@ -29,7 +29,7 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase dashboard → Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase dashboard → Settings → API |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase dashboard → Settings → API (for account deletion) |
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` for local dev |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` for local dev, or your final HTTPS origin in production |
 | `GEMINI_API_KEY` or `OPENROUTER_API_KEY` | Google AI Studio / OpenRouter dashboard |
 
 ### Optional Variables
@@ -95,7 +95,7 @@ npx tsc --noEmit
 # Linting
 npm run lint
 
-# Unit tests (69 tests across 11 files)
+# Unit tests (76 tests across 11 files)
 npm test
 
 # E2E tests (requires E2E_TEST_EMAIL and E2E_TEST_PASSWORD in .env.local)
@@ -112,7 +112,7 @@ After setup, verify these flows work:
 2. **Add manual expense** — Navigate to `/expenses`, add an expense with all fields
 3. **Receipt capture** — Navigate to `/receipts/capture`, upload a receipt photo
 4. **Budget creation** — Navigate to `/budgets`, create a budget for a category
-5. **CSV import** — Navigate to `/imports`, upload a CSV with Date/Amount/Category columns
+5. **CSV import** — Navigate to `/imports`, upload a CSV with Date/Amount/Category columns (up to 2,000 rows per import)
 6. **Settings** — Navigate to `/settings`, verify profile, currency, and notification toggles
 7. **Notifications** — Navigate to `/notifications`, check for any budget alerts
 
@@ -142,4 +142,6 @@ The app is designed to run within Supabase's free plan limits:
 - **Spin-down**: Free services spin down after 15 minutes of inactivity. First request after spin-down takes ~30-60 seconds.
 - **Health check**: Set the health check path to `/api/warmup` in the Render dashboard or use the included `render.yaml` blueprint.
 - **Build**: Uses `npm install && npm run build` with `output: "standalone"` for optimized deployment.
+- **Start**: Use `npm run start`, which launches `node scripts/run-standalone.mjs` and serves the standalone output with copied static/public assets.
 - **Environment variables**: All vars from `.env.example` should be set in the Render dashboard under Environment.
+- **Production origin**: Set `NEXT_PUBLIC_APP_URL` to your final public HTTPS origin so canonical tags, OG/Twitter images, robots, and JSON-LD all resolve correctly.

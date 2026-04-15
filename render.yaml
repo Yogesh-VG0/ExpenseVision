@@ -7,7 +7,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npm run start
+    startCommand: node scripts/run-standalone.mjs
     healthCheckPath: /api/warmup
     envVars:
       - key: NEXT_PUBLIC_SUPABASE_URL

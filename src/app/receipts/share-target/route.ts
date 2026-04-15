@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { persistReceiptRecord } from "@/lib/receipt-records";
-import { buildReceiptStoragePath, validateReceiptFile } from "@/lib/receipts";
+import {
+  buildReceiptStoragePath,
+  validateReceiptFile,
+  validateReceiptFileBytes,
+} from "@/lib/receipts";
 import {
   buildReceiptShareFingerprint,
   RECEIPT_SHARE_COOKIE_MAX_AGE_SECONDS,
@@ -9,7 +13,7 @@ import {
   RECEIPT_SHARE_FORM_FIELD_NAME,
   serializeReceiptShareDraft,
 } from "@/lib/receipt-share";
-import { safeRedirectPath } from "@/lib/utils";
+import { buildLoginRedirectPath } from "@/lib/utils";
 
 function createCaptureUrl(request: NextRequest, shareState?: string) {
   const url = request.nextUrl.clone();
@@ -27,7 +31,10 @@ function createLoginUrl(request: NextRequest) {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   url.search = "";
-  url.searchParams.set("redirect", safeRedirectPath("/receipts/capture?share=login-required"));
+
+  const redirectUrl = buildLoginRedirectPath("/receipts/capture?share=login-required");
+  const redirectTarget = new URL(redirectUrl, request.nextUrl.origin);
+  url.search = redirectTarget.search;
   return url;
 }
 
@@ -53,6 +60,13 @@ export async function POST(request: NextRequest) {
 
     const validationError = validateReceiptFile(sharedFile);
     if (validationError) {
+      return NextResponse.redirect(createCaptureUrl(request, "unsupported-file"), 303);
+    }
+
+    const bytes = await sharedFile.arrayBuffer();
+    const byteValidationError = validateReceiptFileBytes(bytes, sharedFile.type);
+
+    if (byteValidationError) {
       return NextResponse.redirect(createCaptureUrl(request, "unsupported-file"), 303);
     }
 

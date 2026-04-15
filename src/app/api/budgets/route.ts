@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { budgetMutationRateLimit } from "@/lib/redis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { budgetSchema } from "@/lib/validations";
 
@@ -30,6 +32,16 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResponse = await enforceRateLimit(
+      budgetMutationRateLimit,
+      user.id,
+      "Too many budget changes. Please wait a moment and try again."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const body = await request.json();

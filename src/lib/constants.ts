@@ -1,6 +1,8 @@
+import { getAppUrl } from "@/lib/app-url";
+
 export const APP_NAME = "ExpenseVision";
 export const APP_DESCRIPTION = "AI-powered expense tracking with smart receipt scanning, budget management, and financial insights.";
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+export const APP_URL = getAppUrl();
 
 export const MAX_EXPENSE_AMOUNT = 9_999_999.99;
 export const MIN_PASSWORD_LENGTH = 8;

@@ -12,3 +12,8 @@ export function safeRedirectPath(path: string): string {
   }
   return path;
 }
+
+export function buildLoginRedirectPath(targetPath: string) {
+  const redirect = safeRedirectPath(targetPath);
+  return `/login?redirect=${encodeURIComponent(redirect)}`;
+}

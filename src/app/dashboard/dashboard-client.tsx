@@ -1,12 +1,20 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { OverviewCards } from "@/components/dashboard/overview-cards";
-import { ExpenseChart } from "@/components/dashboard/expense-chart";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
-import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";
 import type { Expense, Budget, AnalyticsData } from "@/lib/types";
+
+const ExpenseChart = dynamic(
+  () => import("@/components/dashboard/expense-chart").then((mod) => mod.ExpenseChart),
+  { ssr: false }
+);
+const CategoryBreakdown = dynamic(
+  () => import("@/components/dashboard/category-breakdown").then((mod) => mod.CategoryBreakdown),
+  { ssr: false }
+);
 
 interface DashboardClientProps {
   expenses: Expense[];

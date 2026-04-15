@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { expenseMutationRateLimit } from "@/lib/redis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { expenseSchema } from "@/lib/validations";
 
@@ -49,6 +51,16 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const rateLimitResponse = await enforceRateLimit(
+      expenseMutationRateLimit,
+      user.id,
+      "Too many expense changes. Please wait a moment and try again."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const { id } = await params;
     if (!UUID_RE.test(id)) {
       return NextResponse.json({ error: "Invalid expense ID" }, { status: 400 });
@@ -91,6 +103,16 @@ export async function DELETE(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResponse = await enforceRateLimit(
+      expenseMutationRateLimit,
+      user.id,
+      "Too many expense changes. Please wait a moment and try again."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const { id } = await params;

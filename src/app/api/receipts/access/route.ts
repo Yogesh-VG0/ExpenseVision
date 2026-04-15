@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiRateLimit } from "@/lib/redis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { isReceiptStoragePath } from "@/lib/receipts";
 
@@ -13,6 +15,16 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResponse = await enforceRateLimit(
+      apiRateLimit,
+      user.id,
+      "Too many receipt access refreshes. Please wait a moment and try again."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const body = await request.json();

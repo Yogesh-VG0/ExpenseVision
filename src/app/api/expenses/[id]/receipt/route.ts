@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { expenseMutationRateLimit } from "@/lib/redis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -15,6 +17,16 @@ export async function DELETE(
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResponse = await enforceRateLimit(
+      expenseMutationRateLimit,
+      user.id,
+      "Too many expense changes. Please wait a moment and try again."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const { id } = await params;

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { notificationMutationRateLimit } from "@/lib/redis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -12,6 +14,16 @@ export async function POST() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResponse = await enforceRateLimit(
+      notificationMutationRateLimit,
+      user.id,
+      "Too many summary requests. Please wait a moment and try again."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     // Respect user notification preferences — skip if weekly_summary is explicitly disabled

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/app-shell";
+import { buildLoginRedirectPath } from "@/lib/utils";
 
 export default async function ImportsLayout({
   children,
@@ -13,7 +14,7 @@ export default async function ImportsLayout({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect(buildLoginRedirectPath("/imports"));
   }
 
   return (

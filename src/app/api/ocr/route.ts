@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import { persistReceiptRecord } from "@/lib/receipt-records";
 import { CATEGORIES } from "@/lib/types";
@@ -22,6 +23,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const APP_URL = getAppUrl();
 
 // Gemini direct models (current GA stable — 2.5-flash is Google's recommended workhorse)
 const GEMINI_MODELS = [
@@ -205,7 +207,7 @@ async function tryOpenRouter(dataUrl: string): Promise<{ result: OCRResult | nul
           headers: {
             Authorization: `Bearer ${OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+            "HTTP-Referer": APP_URL,
             "X-Title": "ExpenseVision OCR",
           },
           body: JSON.stringify({
@@ -328,6 +330,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file available for OCR" }, { status: 400 });
     }
 
+    const bytes = await file.arrayBuffer();
+
+    // Server-side magic-byte validation — reject mismatched file content
+    const byteValidationError = validateReceiptFileBytes(bytes, file.type);
+    if (byteValidationError) {
+      return NextResponse.json({ error: byteValidationError }, { status: 400 });
+    }
+
     let receiptStoragePath = providedReceiptPath;
     let uploadStatus: ReceiptLifecycleStatus = providedReceiptPath ? "skipped" : "failed";
     let uploadWarning: string | null = null;
@@ -356,14 +366,6 @@ export async function POST(request: NextRequest) {
           uploadStatus = "failed";
         }
       }
-    }
-
-    const bytes = await file.arrayBuffer();
-
-    // Server-side magic-byte validation — reject mismatched file content
-    const byteValidationError = validateReceiptFileBytes(bytes, file.type);
-    if (byteValidationError) {
-      return NextResponse.json({ error: byteValidationError }, { status: 400 });
     }
 
     const base64 = Buffer.from(bytes).toString("base64");

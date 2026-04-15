@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { telemetryRateLimit } from "@/lib/redis";
+import { enforceRateLimit, getRequestIp } from "@/lib/rate-limit";
 import { TELEMETRY_EVENTS } from "@/lib/telemetry";
 
 const VALID_EVENTS = new Set<string>(TELEMETRY_EVENTS);
 
 export async function POST(request: NextRequest) {
   try {
+    const rateLimitResponse = await enforceRateLimit(
+      telemetryRateLimit,
+      getRequestIp(request),
+      "Too many telemetry events. Please slow down and try again shortly."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const body = await request.json();
     const event = typeof body?.event === "string" ? body.event : "";
     const payload =

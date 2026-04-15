@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { budgetMutationRateLimit } from "@/lib/redis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { MAX_EXPENSE_AMOUNT } from "@/lib/constants";
@@ -16,6 +18,16 @@ export async function PUT(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResponse = await enforceRateLimit(
+      budgetMutationRateLimit,
+      user.id,
+      "Too many budget changes. Please wait a moment and try again."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const { id } = await params;
@@ -56,6 +68,16 @@ export async function DELETE(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResponse = await enforceRateLimit(
+      budgetMutationRateLimit,
+      user.id,
+      "Too many budget changes. Please wait a moment and try again."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const { id } = await params;

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function ImportsPage() {
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-8">
+    <div className="container mx-auto w-full max-w-4xl min-w-0 overflow-x-hidden px-4 py-8">
       <CSVImportWizard />
     </div>
   );

@@ -3,6 +3,7 @@
 ## Core Runtime
 
 ExpenseVision uses the Next.js App Router for authenticated pages and API routes.
+Authenticated route gating is handled in `src/proxy.ts`, which keeps runtime redirect behavior consistent in production-like deployments.
 Supabase provides:
 
 - authentication
@@ -62,7 +63,7 @@ The `/receipts/capture` page reuses the same OCR and review state machine while 
 The share flow works like this:
 
 - `manifest.ts` advertises a Web Share Target for image and PDF files
-- `/receipts/share-target` receives the shared `POST`, validates the file, uploads it once, persists a receipt row, and redirects to `/receipts/capture`
+- `/receipts/share-target` receives the shared `POST`, validates the file extension/MIME/signature before any storage write, uploads it once, persists a receipt row, and redirects to `/receipts/capture`
 - `ReceiptWorkspace` resumes from a short-lived shared draft, refreshes signed preview access for the stored receipt path, then runs OCR using the existing `receipt_path` retry path
 - local resume state preserves review context across refresh/reopen for a limited time
 - `/api/expenses` rejects saving a second expense when the same stored receipt path is already linked to an existing expense
@@ -105,7 +106,10 @@ The share flow works like this:
 - 5-step `CSVImportWizard` at `/imports`
 - Auto-detecting column header mapping (`src/lib/csv-parser.ts`)
 - Client-side validation with currency and date normalization
-- Batch creation with idempotency keys
+- Server-side batch import endpoint at `/api/expenses/import`
+- Chunked inserts (50 rows per request) to reduce free-tier request chatter
+- Reuse of idempotency keys, duplicate detection, and category suggestion logic during import batches
+- Default limit of 2,000 rows per import for smoother free-tier operation
 
 ### AI Insights
 
@@ -152,7 +156,7 @@ Today it records receipt lifecycle, install-prompt, and push subscription events
 
 Current automated verification includes:
 
-- 69 unit tests across 11 test files covering:
+- 76 unit tests across 11 test files covering:
   - offline queue mechanics
   - duplicate detection
   - merchant normalization

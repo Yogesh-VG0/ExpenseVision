@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAppUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import { aiRateLimit } from "@/lib/redis";
 
@@ -6,6 +7,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const APP_URL = getAppUrl();
 
 // Gemini direct models (current GA stable — 2.5-flash is Google's recommended workhorse)
 const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
@@ -232,7 +234,7 @@ Rules:
               Authorization: `Bearer ${OPENROUTER_API_KEY}`,
               "Content-Type": "application/json",
               "HTTP-Referer":
-                process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+                APP_URL,
               "X-Title": "ExpenseVision AI Insights",
             },
             body: JSON.stringify({

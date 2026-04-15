@@ -44,7 +44,8 @@ import { trackEvent } from "@/lib/telemetry";
 type WizardStep = "upload" | "mapping" | "preview" | "importing" | "results";
 
 const CSV_MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
-const CSV_MAX_ROWS = 5000;
+const CSV_MAX_ROWS = 2000;
+const IMPORT_CHUNK_SIZE = 50;
 
 interface ImportResult {
   total: number;
@@ -143,51 +144,84 @@ export function CSVImportWizard() {
     setStep("importing");
     setProgress(0);
 
+    const importableRows = validRows.filter(
+      (row): row is ParsedRow & { mapped: NonNullable<ParsedRow["mapped"]> } =>
+        row.mapped !== null
+    );
+
     const results: ImportResult = {
-      total: validRows.length,
+      total: importableRows.length,
       succeeded: 0,
       failed: 0,
       errors: [],
     };
 
-    for (let i = 0; i < validRows.length; i++) {
-      const row = validRows[i];
-      if (!row.mapped) continue;
+    let processedRows = 0;
+
+    for (let i = 0; i < importableRows.length; i += IMPORT_CHUNK_SIZE) {
+      const chunk = importableRows.slice(i, i + IMPORT_CHUNK_SIZE);
 
       try {
-        const res = await fetch("/api/expenses", {
+        const res = await fetch("/api/expenses/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            amount: row.mapped.amount,
-            vendor: row.mapped.vendor || undefined,
-            category: row.mapped.category || "Other",
-            description: row.mapped.description || "",
-            date: row.mapped.date,
-            is_recurring: false,
-            idempotency_key: `csv-import-${row.rowIndex}-${row.mapped.date}-${row.mapped.amount}`,
+            rows: chunk.map((row) => ({
+              source_row: row.rowIndex + 1,
+              amount: row.mapped.amount,
+              vendor: row.mapped.vendor || undefined,
+              category: row.mapped.category || undefined,
+              description: row.mapped.description || "",
+              date: row.mapped.date,
+              idempotency_key: `csv-import-${row.rowIndex}-${row.mapped.date}-${row.mapped.amount}`,
+            })),
           }),
         });
 
-        if (res.ok || res.status === 200 || res.status === 201) {
-          results.succeeded++;
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          results.succeeded += typeof data.succeeded === "number" ? data.succeeded : 0;
+          results.failed += typeof data.failed === "number" ? data.failed : 0;
+          if (Array.isArray(data.errors)) {
+            results.errors.push(
+              ...data.errors
+                .filter(
+                  (error: unknown): error is { row: number; error: string } =>
+                    typeof error === "object" &&
+                    error !== null &&
+                    typeof (error as { row?: unknown }).row === "number" &&
+                    typeof (error as { error?: unknown }).error === "string"
+                )
+            );
+          }
         } else {
-          const data = await res.json().catch(() => ({}));
-          results.failed++;
-          results.errors.push({
-            row: row.rowIndex + 1,
-            error: data.error || `Status ${res.status}`,
-          });
+          const chunkError = data.error || `Status ${res.status}`;
+          results.failed += chunk.length;
+          results.errors.push(
+            ...chunk.map((row) => ({
+              row: row.rowIndex + 1,
+              error: chunkError,
+            }))
+          );
         }
       } catch (err) {
-        results.failed++;
-        results.errors.push({
-          row: row.rowIndex + 1,
-          error: err instanceof Error ? err.message : "Network error",
-        });
+        const chunkError = err instanceof Error ? err.message : "Network error";
+        results.failed += chunk.length;
+        results.errors.push(
+          ...chunk.map((row) => ({
+            row: row.rowIndex + 1,
+            error: chunkError,
+          }))
+        );
       }
 
-      setProgress(Math.round(((i + 1) / validRows.length) * 100));
+      processedRows += chunk.length;
+      setProgress(
+        importableRows.length === 0
+          ? 100
+          : Math.round((processedRows / importableRows.length) * 100)
+      );
     }
 
     setImportResult(results);
@@ -217,7 +251,7 @@ export function CSVImportWizard() {
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 overflow-x-hidden">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Import Expenses</h1>
         <p className="text-muted-foreground">
@@ -226,7 +260,7 @@ export function CSVImportWizard() {
       </div>
 
       {/* Step indicator */}
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         {(["upload", "mapping", "preview", "importing", "results"] as const).map(
           (s, idx) => (
             <div key={s} className="flex items-center gap-2">
@@ -260,7 +294,7 @@ export function CSVImportWizard() {
           <CardContent>
             <label
               htmlFor="csv_upload"
-              className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border p-12 transition-colors hover:border-primary/50 hover:bg-primary/5"
+              className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border p-8 transition-colors hover:border-primary/50 hover:bg-primary/5 sm:p-12"
             >
               <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
               <p className="text-sm font-medium">
@@ -292,7 +326,7 @@ export function CSVImportWizard() {
               what we could.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+            <CardContent className="min-w-0 space-y-5">
             {([
                 { field: "date" as const, label: "Date *", required: true },
                 { field: "amount" as const, label: "Amount *", required: true },
@@ -320,7 +354,7 @@ export function CSVImportWizard() {
               </div>
             ))}
 
-            <div className="flex gap-3 pt-2">
+              <div className="flex flex-col gap-3 pt-2 sm:flex-row">
               <Button variant="outline" onClick={handleReset}>
                 <ChevronLeft className="mr-1.5 h-4 w-4" />
                 Back
@@ -418,7 +452,7 @@ export function CSVImportWizard() {
 
               <Separator className="my-4" />
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <Button variant="outline" onClick={() => setStep("mapping")}>
                   <ChevronLeft className="mr-1.5 h-4 w-4" />
                   Back
@@ -457,7 +491,7 @@ export function CSVImportWizard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="rounded-xl border border-border bg-muted/20 p-4 text-center">
                 <p className="text-2xl font-bold">{importResult.total}</p>
                 <p className="text-xs text-muted-foreground">Total</p>

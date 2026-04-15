@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { accountMutationRateLimit } from "@/lib/redis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReceiptStoragePath } from "@/lib/receipts";
@@ -12,6 +14,16 @@ export async function DELETE() {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimitResponse = await enforceRateLimit(
+      accountMutationRateLimit,
+      user.id,
+      "Too many account deletion attempts. Please contact support or try again later."
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const userId = user.id;

@@ -3,6 +3,7 @@ import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PWAProvider } from "@/components/pwa-provider";
+import { getAppUrlObject } from "@/lib/app-url";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -17,10 +18,7 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://expensevision.tech"),
-  alternates: {
-    canonical: "/",
-  },
+  metadataBase: getAppUrlObject(),
   title: {
     default: "ExpenseVision — AI-Powered Expense Tracking",
     template: "%s | ExpenseVision",
@@ -49,6 +47,7 @@ export const metadata: Metadata = {
       "Track expenses, scan receipts with AI, manage budgets, and get smart financial insights.",
     type: "website",
     siteName: "ExpenseVision",
+    url: "/",
     images: [
       {
         url: "/og_image.png",

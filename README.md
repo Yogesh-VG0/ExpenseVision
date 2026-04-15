@@ -99,7 +99,9 @@ Bulk transaction intake supports easy onboarding:
 - A dedicated `/imports` route housing a 5-step `CSVImportWizard`
 - Robust `csv-parser` mapping engine that auto-detects column headers (Date, Amount, Category, Vendor)
 - Client-side validation stripping currency symbols and standardizing US/ISO date formats
-- Batch creation seamlessly using idempotency keys
+- Server-side chunked import batches via `/api/expenses/import` to avoid one-request-per-row churn on free-tier hosting
+- Shared validation, idempotency keys, duplicate detection, and category suggestion logic reused during imports
+- Default CSV import limit reduced to 2,000 rows per import for smoother free-tier behavior
 - *Email Receipt Architecture document included in `docs/` for future webhook implementation*
 
 ## Phase H PWA Polish Included
@@ -116,7 +118,7 @@ Deep OS integration through advanced manifest capabilities:
 
 Test coverage and pipelines have been significantly expanded:
 
-- 69 deterministic unit tests across 11 test files covering offline mechanics, duplicate detection, string normalization, and more
+- 76 deterministic unit tests across 11 test files covering offline mechanics, duplicate detection, string normalization, and more
 - Clean strict-mode TypeScript baseline (`tsc --noEmit`)
 - Playwright configuration for E2E manual expense flow tests (`e2e/happy-path.spec.ts`)
 
@@ -200,7 +202,7 @@ Receipt ingestion currently works like this:
 3. Large supported photos can be optimized client-side before upload.
 4. The file is previewed locally as early as possible.
 5. The file is validated client-side and server-side.
-6. The server attempts storage upload first when needed.
+6. Server-side signature validation happens before any storage upload or receipt-row persistence.
 7. OCR runs through Gemini first, then OpenRouter fallback when configured.
 8. The response returns structured OCR data plus upload/OCR status metadata.
 9. The review screen lets the user edit merchant, amount, category, date, and notes before saving.
@@ -254,13 +256,14 @@ Latest local verification completed for this phase:
 - Set `SUPABASE_SERVICE_ROLE_KEY` in the deployment environment if you want real account deletion.
 - Redeploys are safer when the service worker is allowed to update in the background rather than forcing immediate asset takeover.
 - If AI keys are missing, receipt OCR and AI insights degrade with explicit server errors instead of silent failure.
+- `npm run start` now boots the Next standalone server entrypoint through `scripts/run-standalone.mjs` instead of `next start`.
 
 ### Render Free Deployment
 
 A `render.yaml` blueprint is included for one-click Render deployment.
 
 - **Build command**: `npm install && npm run build`
-- **Start command**: `npm run start`
+- **Start command**: `npm run start` (runs `node scripts/run-standalone.mjs` for Next standalone output)
 - **Health check path**: `/api/warmup` — returns `{ status: "ok" }` as JSON
 - **Free plan caveat**: Render free services spin down after 15 minutes of inactivity. First request after spin-down takes ~30-60 seconds to cold start.
 - **Environment**: Set all variables from `.env.example` in the Render dashboard under Environment.

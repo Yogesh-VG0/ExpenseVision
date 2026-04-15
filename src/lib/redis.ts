@@ -28,4 +28,52 @@ export const apiRateLimit = redis
     })
   : null;
 
+export const expenseMutationRateLimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(30, "60 s"),
+      prefix: "ratelimit:expense-mutations",
+    })
+  : null;
+
+export const importBatchRateLimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, "60 s"),
+      prefix: "ratelimit:expense-import-batches",
+    })
+  : null;
+
+export const budgetMutationRateLimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(20, "60 s"),
+      prefix: "ratelimit:budget-mutations",
+    })
+  : null;
+
+export const notificationMutationRateLimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(30, "60 s"),
+      prefix: "ratelimit:notification-mutations",
+    })
+  : null;
+
+export const telemetryRateLimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(120, "60 s"),
+      prefix: "ratelimit:telemetry",
+    })
+  : null;
+
+export const accountMutationRateLimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(5, "1 h"),
+      prefix: "ratelimit:account-mutations",
+    })
+  : null;
+
 export { redis };
