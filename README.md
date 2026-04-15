@@ -255,6 +255,23 @@ Latest local verification completed for this phase:
 - Redeploys are safer when the service worker is allowed to update in the background rather than forcing immediate asset takeover.
 - If AI keys are missing, receipt OCR and AI insights degrade with explicit server errors instead of silent failure.
 
+### Render Free Deployment
+
+A `render.yaml` blueprint is included for one-click Render deployment.
+
+- **Build command**: `npm install && npm run build`
+- **Start command**: `npm run start`
+- **Health check path**: `/api/warmup` — returns `{ status: "ok" }` as JSON
+- **Free plan caveat**: Render free services spin down after 15 minutes of inactivity. First request after spin-down takes ~30-60 seconds to cold start.
+- **Environment**: Set all variables from `.env.example` in the Render dashboard under Environment.
+
+### Supabase Free Plan
+
+- Free projects auto-pause after 1 week of inactivity — initial requests after pause may be slow.
+- 500 MB database, 1 GB storage. Ample for personal/portfolio use.
+- A private `receipts` bucket must be created manually. See `docs/setup.md` for storage policy configuration.
+- All 6 migrations in `supabase/migrations/` must be applied in order before first use.
+
 ## Browser Support Notes
 
 - The install prompt banner depends on browsers that fire `beforeinstallprompt`.

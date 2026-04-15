@@ -4,6 +4,7 @@ import {
   inferReceiptMimeType,
   isReceiptStoragePath,
   validateReceiptFile,
+  validateReceiptFileBytes,
 } from "@/lib/receipts";
 import type { Expense } from "@/lib/types";
 
@@ -55,14 +56,54 @@ describe("receipt helpers", () => {
     expect(validateReceiptFile(file)).toBeNull();
   });
 
-  it("rejects unsupported receipt files", () => {
+  it("rejects unsupported receipt files by MIME type", () => {
     const file = new File(["hello"], "receipt.txt", { type: "text/plain" });
-    expect(validateReceiptFile(file)).toBe("Unsupported file type");
+    const result = validateReceiptFile(file);
+    expect(result).toContain("Unsupported file type");
+  });
+
+  it("rejects files with unsupported extensions", () => {
+    const file = new File(["hello"], "receipt.bmp", { type: "image/png" });
+    const result = validateReceiptFile(file);
+    expect(result).toContain("Unsupported file extension");
   });
 
   it("infers MIME types from file names", () => {
     expect(inferReceiptMimeType("sample.pdf")).toBe("application/pdf");
     expect(inferReceiptMimeType("sample.webp")).toBe("image/webp");
     expect(inferReceiptMimeType("sample.unknown")).toBe("image/jpeg");
+  });
+
+  it("validates magic bytes for JPEG files", () => {
+    const jpegHeader = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x00, 0x00, 0x00]);
+    expect(validateReceiptFileBytes(jpegHeader.buffer, "image/jpeg")).toBeNull();
+  });
+
+  it("validates magic bytes for PNG files", () => {
+    const pngHeader = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    expect(validateReceiptFileBytes(pngHeader.buffer, "image/png")).toBeNull();
+  });
+
+  it("validates magic bytes for PDF files", () => {
+    const pdfHeader = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34]);
+    expect(validateReceiptFileBytes(pdfHeader.buffer, "application/pdf")).toBeNull();
+  });
+
+  it("rejects mismatched magic bytes", () => {
+    const pngHeader = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    const result = validateReceiptFileBytes(pngHeader.buffer, "image/jpeg");
+    expect(result).toContain("does not match");
+  });
+
+  it("rejects files with unrecognized magic bytes", () => {
+    const garbage = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]);
+    const result = validateReceiptFileBytes(garbage.buffer, "image/jpeg");
+    expect(result).toContain("does not match any supported");
+  });
+
+  it("rejects files that are too small", () => {
+    const tiny = new Uint8Array([0x00, 0x01]);
+    const result = validateReceiptFileBytes(tiny.buffer, "image/jpeg");
+    expect(result).toContain("too small");
   });
 });

@@ -17,6 +17,10 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://expensevision.tech"),
+  alternates: {
+    canonical: "/",
+  },
   title: {
     default: "ExpenseVision — AI-Powered Expense Tracking",
     template: "%s | ExpenseVision",

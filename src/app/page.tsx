@@ -10,9 +10,39 @@ import { FAQ } from "@/components/landing/faq";
 import { CTA } from "@/components/landing/cta";
 import { Footer } from "@/components/landing/footer";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://expensevision.tech";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "ExpenseVision",
+  description:
+    "Track expenses, scan receipts with AI, manage budgets, and get smart financial insights. The modern way to manage your money.",
+  url: APP_URL,
+  applicationCategory: "FinanceApplication",
+  operatingSystem: "Web",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  featureList: [
+    "AI-powered receipt OCR",
+    "Budget management with alerts",
+    "CSV import from bank statements",
+    "Spending insights and analytics",
+    "Installable PWA with offline support",
+  ],
+  screenshot: `${APP_URL}/og_image.png`,
+};
+
 export default function LandingPage() {
   return (
     <div className="relative min-h-screen bg-background text-foreground">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Navbar />
       <main>
         <Hero />

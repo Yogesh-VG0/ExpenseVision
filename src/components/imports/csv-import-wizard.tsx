@@ -43,6 +43,9 @@ import { trackEvent } from "@/lib/telemetry";
 
 type WizardStep = "upload" | "mapping" | "preview" | "importing" | "results";
 
+const CSV_MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+const CSV_MAX_ROWS = 5000;
+
 interface ImportResult {
   total: number;
   succeeded: number;
@@ -71,6 +74,11 @@ export function CSVImportWizard() {
         return;
       }
 
+      if (file.size > CSV_MAX_FILE_BYTES) {
+        toast.error(`CSV file is too large. Maximum size is ${CSV_MAX_FILE_BYTES / (1024 * 1024)} MB.`);
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = (ev) => {
         const text = ev.target?.result as string;
@@ -78,6 +86,11 @@ export function CSVImportWizard() {
 
         if (h.length === 0 || r.length === 0) {
           toast.error("CSV appears to be empty or invalid");
+          return;
+        }
+
+        if (r.length > CSV_MAX_ROWS) {
+          toast.error(`CSV has ${r.length.toLocaleString()} rows. Maximum is ${CSV_MAX_ROWS.toLocaleString()} rows per import.`);
           return;
         }
 

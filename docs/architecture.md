@@ -88,6 +88,11 @@ The share flow works like this:
 > Server-side push delivery (using `web-push` to actually send notifications to subscribers) is not yet implemented.
 > The in-app notification center is the primary notification experience.
 
+> **Weekly summary note:** The `/api/notifications/weekly-summary` endpoint currently requires an authenticated user session (it uses `supabase.auth.getUser()` to scope the query). This means it cannot be triggered by a simple external cron/scheduler without a logged-in user context. Realistic future options include:
+> - Refactoring to use a service-role key and iterating over all users with the preference enabled
+> - Triggering from a client-side periodic check when the user visits the app
+> In the current version, the endpoint works when called from an authenticated browser session (e.g., from Settings or a manual trigger).
+
 ### Data Quality (Phase F)
 
 - Merchant normalization with 80+ known variants (`src/lib/merchant-normalize.ts`)

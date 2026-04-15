@@ -125,3 +125,21 @@ After setup, verify these flows work:
 - **File handlers / launchQueue**: Desktop Chromium only; files are passed into the capture flow via sessionStorage
 - **Background Sync**: Chromium only; degrades to manual retry on other browsers
 - **PDF preview**: Upload and OCR work; inline preview availability depends on browser
+
+## Supabase Free Plan Notes
+
+The app is designed to run within Supabase's free plan limits:
+
+- **Auto-pause**: Free projects pause after 1 week of inactivity. The first request after a pause may take 10-30 seconds while the database wakes up. Consider using an uptime monitor (e.g. UptimeRobot) hitting `/api/warmup` to keep the Supabase project responsive, though this does not prevent Supabase-side pausing.
+- **Database**: 500 MB storage limit. Expense and notification records are small; this is ample for personal use.
+- **Storage**: 1 GB file storage. The app enforces a 10 MB per-upload limit, so this supports ~100 receipt uploads before nearing the cap.
+- **Connections**: Limited concurrent database connections. The standalone Next.js server uses server-side Supabase clients per-request; this is fine for personal/portfolio traffic but may hit limits under load.
+- **Migrations**: All 6 migrations in `supabase/migrations/` must be applied in order. The app does not auto-migrate.
+- **Bucket**: A private `receipts` bucket must be created manually with RLS policies scoped to `auth.uid()`.
+
+## Render Free Plan Notes
+
+- **Spin-down**: Free services spin down after 15 minutes of inactivity. First request after spin-down takes ~30-60 seconds.
+- **Health check**: Set the health check path to `/api/warmup` in the Render dashboard or use the included `render.yaml` blueprint.
+- **Build**: Uses `npm install && npm run build` with `output: "standalone"` for optimized deployment.
+- **Environment variables**: All vars from `.env.example` should be set in the Render dashboard under Environment.
