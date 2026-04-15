@@ -124,13 +124,20 @@ export function PWAProvider({ children }: { children: ReactNode }) {
 
   const install = useCallback(async () => {
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      await trackEvent(
-        outcome === "accepted" ? "install_prompt_accepted" : "install_prompt_dismissed",
-        { surface: "nav_item" }
-      );
-      setDeferredPrompt(null);
+      try {
+        await deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        await trackEvent(
+          outcome === "accepted" ? "install_prompt_accepted" : "install_prompt_dismissed",
+          { surface: "nav_item" }
+        );
+        if (outcome === "accepted") {
+          setDeferredPrompt(null);
+        }
+      } catch {
+        // prompt() can only be called once per event in some browsers;
+        // fall through to manual instructions below
+      }
       return;
     }
 
