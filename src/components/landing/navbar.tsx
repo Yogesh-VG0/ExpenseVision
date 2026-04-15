@@ -19,9 +19,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, LayoutDashboard, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Menu, LayoutDashboard, Settings, LogOut, ChevronDown, Download } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { createClient } from "@/lib/supabase/client";
+import { usePWAInstall } from "@/components/pwa-provider";
 import { toast } from "sonner";
 
 const navLinks = [
@@ -34,6 +35,7 @@ const navLinks = [
 export function Navbar() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const { canInstall, install } = usePWAInstall();
   const [user, setUser] = useState<{
     email: string;
     full_name: string | null;
@@ -122,6 +124,17 @@ export function Navbar() {
 
         {/* Desktop CTA */}
         <div className="hidden items-center gap-3 md:flex">
+          {canInstall && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={install}
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden lg:inline">Install App</span>
+            </Button>
+          )}
           <ThemeToggle />
           {isSignedIn ? (
             <div className="flex items-center gap-3">
@@ -195,6 +208,15 @@ export function Navbar() {
                 <span className="text-sm text-muted-foreground">Theme</span>
                 <ThemeToggle />
               </div>
+              {canInstall && (
+                <button
+                  onClick={() => { setOpen(false); install(); }}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                >
+                  <Download className="h-5 w-5" />
+                  Install App
+                </button>
+              )}
               {isSignedIn ? (
                 <>
                   <Button className="w-full" render={<Link href="/dashboard" onClick={() => setOpen(false)} />}>

@@ -1,9 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { Download, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/telemetry";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -30,12 +28,8 @@ export function usePWAInstall() {
 export function PWAProvider({ children }: { children: ReactNode }) {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
-  const [showBanner, setShowBanner] = useState(false);
-  const pathname = usePathname();
-  const isLandingPage = pathname === "/";
 
   useEffect(() => {
-    let timeoutId: number | null = null;
     let visibilityHandler: (() => void) | null = null;
 
     if ("serviceWorker" in navigator) {
@@ -56,7 +50,6 @@ export function PWAProvider({ children }: { children: ReactNode }) {
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      timeoutId = window.setTimeout(() => setShowBanner(true), 30000);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
@@ -64,9 +57,6 @@ export function PWAProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("beforeinstallprompt", handler);
       if (visibilityHandler) {
         document.removeEventListener("visibilitychange", visibilityHandler);
-      }
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
       }
     };
   }, []);
@@ -119,40 +109,16 @@ export function PWAProvider({ children }: { children: ReactNode }) {
     const { outcome } = await deferredPrompt.userChoice;
     await trackEvent(
       outcome === "accepted" ? "install_prompt_accepted" : "install_prompt_dismissed",
-      { surface: "install_banner" }
+      { surface: "nav_item" }
     );
-    setShowBanner(false);
     setDeferredPrompt(null);
   }, [deferredPrompt]);
-
-  const dismiss = useCallback(() => {
-    void trackEvent("install_prompt_dismissed", { surface: "install_banner" });
-    setShowBanner(false);
-  }, []);
 
   const canInstall = !!deferredPrompt;
 
   return (
-    <PWAContext value={{ canInstall, install, dismiss }}>
+    <PWAContext value={{ canInstall, install, dismiss: install }}>
       {children}
-      {/* Only show floating banner on landing page after a delay */}
-      {isLandingPage && showBanner && canInstall && (
-        <div className="fixed bottom-4 right-4 z-50 w-72 animate-fade-up rounded-xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <Download className="h-4 w-4 shrink-0 text-primary" />
-            <p className="flex-1 text-xs font-medium">Install as app</p>
-            <Button size="sm" onClick={install} className="h-6 px-2 text-[10px]">
-              Install
-            </Button>
-            <button
-              onClick={dismiss}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-      )}
     </PWAContext>
   );
 }
