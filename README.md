@@ -299,17 +299,6 @@ e2e/                        # Playwright E2E spec
 
 ---
 
-## Known Limitations
-
-- **Email receipt forwarding** is scaffolded (`email-receipt-parser.ts`) but not implemented.
-- **Render cold starts** add 30–60s latency after inactivity periods.
-- **No real-time updates** — dashboard data requires page refresh or navigation.
-- **File Handlers / Launch Queue** are Chromium desktop-only.
-- **Background Sync** is Chromium-only; other browsers use manual retry UI.
-- **CSP** uses `'unsafe-inline'` for scripts — required by Next.js inline script injection; nonce-based CSP is a future improvement.
-
----
-
 ## Full Documentation
 
 See **[DOCUMENTATION.md](./DOCUMENTATION.md)** for the complete technical reference including database schema, API inventory, security model, PWA architecture details, and deployment guide.
