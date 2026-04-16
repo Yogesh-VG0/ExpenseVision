@@ -300,6 +300,13 @@
   background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
 }
 
+/* ---- Indeterminate progress bar ---- */
+@keyframes indeterminate {
+  0% { width: 0%; margin-left: 0%; }
+  50% { width: 60%; margin-left: 20%; }
+  100% { width: 0%; margin-left: 100%; }
+}
+
 /* ---- Reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

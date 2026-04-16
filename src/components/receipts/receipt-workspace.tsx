@@ -36,7 +36,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -1014,11 +1013,11 @@ export function ReceiptWorkspace({
         <Card className="border-amber-500/30 bg-amber-500/10">
           <CardContent className="flex items-start gap-3 p-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15">
-              <Share2 className="h-5 w-5 text-amber-200" />
+              <Share2 className="h-5 w-5 text-amber-600 dark:text-amber-200" />
             </div>
             <div className="space-y-1">
-              <p className="font-medium text-amber-50">{shareFeedback.title}</p>
-              <p className="text-sm text-amber-100/90">{shareFeedback.description}</p>
+              <p className="font-medium text-amber-900 dark:text-amber-50">{shareFeedback.title}</p>
+              <p className="text-sm text-amber-800/90 dark:text-amber-100/90">{shareFeedback.description}</p>
             </div>
           </CardContent>
         </Card>
@@ -1177,13 +1176,13 @@ export function ReceiptWorkspace({
                       />
                     ) : (
                       <div className="flex min-h-72 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-                        <FileText className="h-12 w-12 text-muted-foreground" />
+                        <Loader2 className="h-12 w-12 animate-spin text-primary/60" />
                         <div>
-                          <p className="font-medium">Preparing your file</p>
+                          <p className="font-medium">Processing your receipt</p>
                           <p className="text-sm text-muted-foreground">
                             {selectedFile?.type === "application/pdf"
-                              ? "PDF selected. OCR is running now."
-                              : "Generating a preview and extracting details."}
+                              ? "PDF selected — running OCR to extract receipt data."
+                              : "Uploading and running OCR on your receipt image."}
                           </p>
                         </div>
                       </div>
@@ -1214,16 +1213,20 @@ export function ReceiptWorkspace({
                       <div className="space-y-2">
                         <p className="font-medium">Uploading securely and running OCR</p>
                         <p className="text-sm text-muted-foreground">
-                          You can start checking the preview while we extract the merchant, amount, date, and notes.
+                          {preview
+                            ? "You can start checking the preview while we extract the merchant, amount, date, and notes."
+                            : "Extracting the merchant, amount, date, and notes from your receipt."}
                         </p>
                       </div>
                     </div>
                     <div className="mt-4 space-y-2">
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
                         <span>Receipt upload and OCR</span>
-                        <span>Please wait</span>
+                        <span className="animate-pulse">Processing…</span>
                       </div>
-                      <Progress value={72} />
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-primary animate-[indeterminate_1.5s_ease-in-out_infinite]" />
+                      </div>
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -1301,9 +1304,9 @@ export function ReceiptWorkspace({
                       </div>
 
                       {(processingResult.warning || processingResult.error || hasWeakConfidence) && (
-                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
                           <div className="flex items-start gap-2">
-                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                             <div className="space-y-1">
                               {processingResult.warning && <p>{processingResult.warning}</p>}
                               {processingResult.error && <p>{processingResult.error}</p>}
@@ -1512,7 +1515,7 @@ export function ReceiptWorkspace({
                       </span>
                     </div>
                     {receipt.receipt_access_state === "missing" && (
-                      <p className="mt-2 text-xs text-amber-400">Tap to refresh or remove the broken reference.</p>
+                      <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Tap to refresh or remove the broken reference.</p>
                     )}
                   </CardContent>
                 </Card>

@@ -31,6 +31,26 @@ function resolveTheme(theme: Theme): "light" | "dark" {
   return theme === "system" ? getSystemTheme() : theme;
 }
 
+function getInitialTheme(defaultTheme: Theme): Theme {
+  if (typeof window === "undefined") return defaultTheme;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
+    if (stored && ["light", "dark", "system"].includes(stored)) return stored;
+  } catch {}
+  return defaultTheme;
+}
+
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t&&["light","dark","system"].indexOf(t)!==-1){var r=t==="system"?window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":t;document.documentElement.classList.remove("light","dark");document.documentElement.classList.add(r)}}catch(e){}})()`;
+
+export function ThemeInitScript() {
+  return (
+    <script
+      dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+      suppressHydrationWarning
+    />
+  );
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = "dark",
@@ -40,18 +60,12 @@ export function ThemeProvider({
   attribute?: string;
   disableTransitionOnChange?: boolean;
 }) {
-  const [theme, setThemeState] = React.useState<Theme>(defaultTheme);
-  const [resolved, setResolved] = React.useState<"light" | "dark">(
-    resolveTheme(defaultTheme)
+  const [theme, setThemeState] = React.useState<Theme>(() =>
+    getInitialTheme(defaultTheme)
   );
-
-  // Read persisted theme on mount
-  React.useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    if (stored && ["light", "dark", "system"].includes(stored)) {
-      setThemeState(stored);
-    }
-  }, []);
+  const [resolved, setResolved] = React.useState<"light" | "dark">(() =>
+    resolveTheme(getInitialTheme(defaultTheme))
+  );
 
   // Apply theme class to <html> and persist
   React.useEffect(() => {

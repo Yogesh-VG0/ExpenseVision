@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider, ThemeInitScript } from "@/components/theme-provider";
 import { PWAProvider } from "@/components/pwa-provider";
 import { getAppUrlObject } from "@/lib/app-url";
 import "./globals.css";
@@ -94,6 +94,7 @@ export default function RootLayout({
       className={`dark ${dmSans.variable} ${jetBrainsMono.variable} h-full antialiased overflow-x-hidden`}
     >
       <body className="min-h-full flex flex-col overflow-x-hidden">
+        <ThemeInitScript />
         <ThemeProvider defaultTheme="dark">
           <PWAProvider>
             {children}
