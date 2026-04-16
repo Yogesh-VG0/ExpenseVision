@@ -1,24 +1,55 @@
-# ExpenseVision
+<p align="center">
+  <img src="docs/assets/logo.png" alt="ExpenseVision Logo" width="120" />
+</p>
 
-**AI-powered expense tracking with receipt OCR, smart budgets, and financial insights — built as a production-grade PWA.**
+<h1 align="center">ExpenseVision</h1>
 
-[![Live App](https://img.shields.io/badge/Live-expensevision.tech-F59E0B?style=flat-square&logo=vercel)](https://expensevision.tech)
-[![Next.js 16](https://img.shields.io/badge/Next.js-16.2-black?style=flat-square&logo=next.js)](https://nextjs.org)
-[![React 19](https://img.shields.io/badge/React-19.2-61DAFB?style=flat-square&logo=react)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
-[![Supabase](https://img.shields.io/badge/Supabase-Auth%20%7C%20DB%20%7C%20Storage-3FCF8E?style=flat-square&logo=supabase)](https://supabase.com)
-[![Tailwind CSS 4](https://img.shields.io/badge/Tailwind-v4-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com)
-[![Render](https://img.shields.io/badge/Deployed%20on-Render-46E3B7?style=flat-square&logo=render)](https://render.com)
+<p align="center">
+  <strong>AI-powered expense tracking with receipt OCR, smart budgets, and financial insights — built as a production-grade PWA.</strong>
+</p>
+
+<p align="center">
+  <a href="https://expensevision.tech"><img src="https://img.shields.io/badge/Live-expensevision.tech-F59E0B?style=flat-square&logo=vercel" alt="Live App" /></a>
+  <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-16.2-black?style=flat-square&logo=next.js" alt="Next.js 16" /></a>
+  <a href="https://react.dev"><img src="https://img.shields.io/badge/React-19.2-61DAFB?style=flat-square&logo=react" alt="React 19" /></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript" alt="TypeScript" /></a>
+  <a href="https://supabase.com"><img src="https://img.shields.io/badge/Supabase-Auth%20%7C%20DB%20%7C%20Storage-3FCF8E?style=flat-square&logo=supabase" alt="Supabase" /></a>
+  <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/Tailwind-v4-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind CSS 4" /></a>
+  <a href="https://render.com"><img src="https://img.shields.io/badge/Deployed%20on-Render-46E3B7?style=flat-square&logo=render" alt="Render" /></a>
+</p>
 
 ---
 
 ## What is ExpenseVision?
 
-ExpenseVision is a full-featured personal finance application that lets users track expenses, scan receipts with AI-powered OCR, set category budgets with automatic alerts, import bank CSVs, and receive AI-generated spending insights. It ships as an installable Progressive Web App with offline support, share-target integration, and push notification infrastructure.
+ExpenseVision is a full-featured personal finance application that lets users track expenses, scan receipts with AI-powered OCR, set category budgets with automatic alerts, import bank CSVs, and receive AI-generated spending insights. It ships as an installable Progressive Web App with offline support, share-target integration, and push notification delivery.
 
 Built with Next.js 16 (App Router), React 19, Supabase, Google Gemini, and Tailwind CSS v4 — deployed on Render's free tier with Upstash Redis for rate limiting.
 
 **[Try the live demo →](https://expensevision.tech/demo)**
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/assets/landing.png" alt="Landing Page" /><br />
+      <strong>Landing Page</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/assets/dashboard.png" alt="Dashboard" /><br />
+      <strong>Dashboard</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="docs/assets/insights.png" alt="AI Insights" /><br />
+      <strong>AI Insights</strong> — Personalized spending analysis with quick stats, AI-generated recommendations, and full report
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -261,7 +292,7 @@ src/
 │   └── ...                 # Types, validations, AI helpers, offline queue, etc.
 ├── __tests__/              # 11 Vitest test files (76 tests)
 └── proxy.ts                # Next.js middleware (auth + route protection)
-supabase/migrations/        # 6 SQL migration files
+supabase/migrations/        # 7 SQL migration files
 public/                     # SW, manifest, icons, fonts
 e2e/                        # Playwright E2E spec
 ```
