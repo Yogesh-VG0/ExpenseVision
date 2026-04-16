@@ -1144,9 +1144,9 @@ export function ReceiptWorkspace({
 
       {(processing || canSave || selectedFile) && (
         <div ref={reviewCardRef}>
-        <Card className="border-border bg-card/80 backdrop-blur-sm">
-          <CardHeader className="flex flex-row items-start justify-between gap-3">
-            <div>
+        <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm">
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1">
               <CardTitle>{processing ? "Processing receipt" : "Review receipt"}</CardTitle>
               <CardDescription>
                 {processing
@@ -1155,15 +1155,33 @@ export function ReceiptWorkspace({
               </CardDescription>
             </div>
             {!processing && (
-              <Button variant="ghost" size="icon" onClick={clearScan} aria-label="Clear receipt review">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={clearScan}
+                aria-label="Clear receipt review"
+                className="self-end sm:self-auto"
+              >
                 <X className="h-4 w-4" />
               </Button>
             )}
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 overflow-hidden">
             {processing ? (
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-                <div className="space-y-4">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] lg:items-start">
+                <div className="min-w-0 space-y-4">
+                  <div className="space-y-3 rounded-2xl border border-border/70 bg-background/50 p-3 sm:p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">Receipt preview</p>
+                        <p className="text-xs text-muted-foreground">
+                          {preview
+                            ? "You can review the image while OCR continues in the background."
+                            : "A preview will appear here when the uploaded file supports it."}
+                        </p>
+                      </div>
+                      {selectedFileSummary && <Badge variant="secondary">{selectedFileSummary}</Badge>}
+                    </div>
                   <div className="overflow-hidden rounded-2xl border border-border bg-muted/20">
                     {preview ? (
                       <Image
@@ -1171,7 +1189,7 @@ export function ReceiptWorkspace({
                         alt="Receipt preview"
                         width={720}
                         height={960}
-                        className="h-full max-h-[28rem] w-full object-contain"
+                        className="h-auto max-h-[60vh] w-full bg-background object-contain sm:max-h-[32rem]"
                         unoptimized
                       />
                     ) : (
@@ -1187,6 +1205,7 @@ export function ReceiptWorkspace({
                         </div>
                       </div>
                     )}
+                  </div>
                   </div>
                   {selectedFile && (
                     <div className="rounded-2xl border border-border/60 bg-background/60 p-4 text-sm">
@@ -1204,7 +1223,7 @@ export function ReceiptWorkspace({
                     </div>
                   )}
                 </div>
-                <div className="space-y-4">
+                <div className="min-w-0 space-y-4">
                   <div className="rounded-2xl border border-border/60 bg-background/60 p-5">
                     <div className="flex items-start gap-3">
                       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
@@ -1229,18 +1248,30 @@ export function ReceiptWorkspace({
                       </div>
                     </div>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <Skeleton className="h-10" />
                     <Skeleton className="h-10" />
                     <Skeleton className="h-10" />
                     <Skeleton className="h-10" />
-                    <Skeleton className="h-28 sm:col-span-2" />
+                    <Skeleton className="h-28 md:col-span-2" />
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-                <div className="space-y-4">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)] lg:items-start">
+                <div className="min-w-0 space-y-4">
+                  <div className="space-y-3 rounded-2xl border border-border/70 bg-background/50 p-3 sm:p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">Receipt preview</p>
+                        <p className="text-xs text-muted-foreground">
+                          {preview
+                            ? "Check the receipt image against the extracted fields before you save."
+                            : "Even without a visual preview, you can still confirm or correct the extracted details below."}
+                        </p>
+                      </div>
+                      {selectedFileSummary && <Badge variant="secondary">{selectedFileSummary}</Badge>}
+                    </div>
                   <div className="overflow-hidden rounded-2xl border border-border bg-muted/20">
                     {preview ? (
                       <Image
@@ -1248,7 +1279,7 @@ export function ReceiptWorkspace({
                         alt="Receipt preview"
                         width={720}
                         height={960}
-                        className="h-full max-h-[28rem] w-full object-contain"
+                        className="h-auto max-h-[60vh] w-full bg-background object-contain sm:max-h-[32rem]"
                         unoptimized
                       />
                     ) : (
@@ -1262,6 +1293,7 @@ export function ReceiptWorkspace({
                         </div>
                       </div>
                     )}
+                  </div>
                   </div>
 
                   {selectedFile && (
@@ -1307,7 +1339,7 @@ export function ReceiptWorkspace({
                         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
                           <div className="flex items-start gap-2">
                             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                            <div className="space-y-1">
+                            <div className="space-y-1 break-words">
                               {processingResult.warning && <p>{processingResult.warning}</p>}
                               {processingResult.error && <p>{processingResult.error}</p>}
                               {hasWeakConfidence && (
@@ -1319,21 +1351,38 @@ export function ReceiptWorkspace({
                       )}
 
                       {recoveryActions.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                           {recoveryActions.includes("retry_ocr") && (
-                            <Button type="button" variant="outline" onClick={retryOCR} disabled={processing}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={retryOCR}
+                              disabled={processing}
+                              className="w-full sm:w-auto"
+                            >
                               <RotateCcw className="mr-2 h-4 w-4" />
                               Retry OCR
                             </Button>
                           )}
                           {recoveryActions.includes("retry_upload") && (
-                            <Button type="button" variant="outline" onClick={retryUpload} disabled={processing}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={retryUpload}
+                              disabled={processing}
+                              className="w-full sm:w-auto"
+                            >
                               <Upload className="mr-2 h-4 w-4" />
                               Retry upload
                             </Button>
                           )}
                           {recoveryActions.includes("save_manually") && (
-                            <Button type="button" variant="ghost" onClick={() => setFormErrors({})}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => setFormErrors({})}
+                              className="w-full sm:w-auto"
+                            >
                               Save manually without OCR
                             </Button>
                           )}
@@ -1343,7 +1392,7 @@ export function ReceiptWorkspace({
                       {processingResult.raw_text && (
                         <details className="rounded-xl border border-border/60 bg-muted/20 p-3 text-sm">
                           <summary className="cursor-pointer font-medium">Raw OCR text</summary>
-                          <pre className="mt-3 whitespace-pre-wrap font-mono text-xs text-muted-foreground">
+                          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-background/70 p-3 font-mono text-xs leading-5 text-muted-foreground">
                             {processingResult.raw_text}
                           </pre>
                         </details>
@@ -1352,15 +1401,21 @@ export function ReceiptWorkspace({
                   )}
                 </div>
 
-                <div className="space-y-4 rounded-2xl border border-border bg-background/60 p-4 sm:p-5">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                <div className="min-w-0 space-y-4 rounded-2xl border border-border bg-background/60 p-4 sm:p-5">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">Expense details</p>
+                    <p className="text-sm text-muted-foreground">
+                      Review the extracted values, correct anything that looks off, and save the expense when ready.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="receipt-vendor">Merchant</Label>
                       <Input
                         id="receipt-vendor"
                         value={formValues.vendor}
                         onChange={(event) => setFormValues((current) => ({ ...current, vendor: event.target.value }))}
-                        className="border-border bg-muted/30"
+                        className="h-11 border-border bg-muted/30"
                         placeholder="e.g. Amazon, Uber, Starbucks"
                       />
                       {formErrors.vendor && <p className="text-xs text-destructive">{formErrors.vendor}</p>}
@@ -1374,7 +1429,7 @@ export function ReceiptWorkspace({
                         min="0"
                         value={formValues.amount}
                         onChange={(event) => setFormValues((current) => ({ ...current, amount: event.target.value }))}
-                        className="border-border bg-muted/30"
+                        className="h-11 border-border bg-muted/30"
                         placeholder="0.00"
                       />
                       {formErrors.amount && <p className="text-xs text-destructive">{formErrors.amount}</p>}
@@ -1391,7 +1446,7 @@ export function ReceiptWorkspace({
                           setFormValues((current) => ({ ...current, category: value }));
                         }}
                       >
-                        <SelectTrigger className="border-border bg-muted/30">
+                        <SelectTrigger className="h-11 border-border bg-muted/30">
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1411,7 +1466,7 @@ export function ReceiptWorkspace({
                         type="date"
                         value={formValues.date}
                         onChange={(event) => setFormValues((current) => ({ ...current, date: event.target.value }))}
-                        className="border-border bg-muted/30"
+                        className="h-11 border-border bg-muted/30"
                       />
                       {formErrors.date && <p className="text-xs text-destructive">{formErrors.date}</p>}
                     </div>
@@ -1430,18 +1485,24 @@ export function ReceiptWorkspace({
                     {formErrors.description && <p className="text-xs text-destructive">{formErrors.description}</p>}
                   </div>
 
-                  <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">Receipt attachment</span>
-                      <Badge variant="secondary">
-                        {processingResult?.receipt_path ? "Attached" : "Manual-only"}
-                      </Badge>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">Previewed total</span>
-                      <span className="font-semibold">
-                        {formValues.amount ? formatCurrency(Number(formValues.amount)) : "—"}
+                  <div className="grid gap-3 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm sm:grid-cols-2 sm:items-start">
+                    <div className="space-y-1">
+                      <span className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                        Receipt attachment
                       </span>
+                      <div>
+                        <Badge variant="secondary">
+                          {processingResult?.receipt_path ? "Attached" : "Manual-only"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-1 sm:text-right">
+                      <span className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                        Previewed total
+                      </span>
+                      <p className="font-semibold text-foreground">
+                        {formValues.amount ? formatCurrency(Number(formValues.amount)) : "—"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1529,7 +1590,7 @@ export function ReceiptWorkspace({
       <PendingQueuePanel />
 
       <Dialog open={!!viewReceipt} onOpenChange={(open) => !open && setViewReceipt(null)}>
-        <DialogContent className="border-border bg-card/95 backdrop-blur-md sm:max-w-lg">
+        <DialogContent className="max-h-[calc(100dvh-1.5rem)] overflow-y-auto border-border bg-card/95 backdrop-blur-md sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{viewReceipt?.vendor ?? "Receipt"}</DialogTitle>
             <DialogDescription>
@@ -1570,9 +1631,9 @@ export function ReceiptWorkspace({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                 <Badge variant="secondary">{viewReceipt.category}</Badge>
-                {viewReceipt.description && <span className="truncate">{viewReceipt.description}</span>}
+                {viewReceipt.description && <span className="min-w-0 break-words">{viewReceipt.description}</span>}
               </div>
 
               <Separator className="bg-muted/50" />
@@ -1654,20 +1715,20 @@ export function ReceiptWorkspace({
 
       {canSave && !processing && (
         <div
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur md:sticky md:bottom-4 md:rounded-2xl md:border"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 shadow-[0_-12px_30px_rgba(15,23,42,0.18)] backdrop-blur md:sticky md:bottom-4 md:rounded-2xl md:border md:shadow-none"
           style={isCaptureMode ? { paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" } : undefined}
         >
-          <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-muted-foreground">
+          <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted-foreground sm:max-w-xl">
               {processingResult?.receipt_path
                 ? "Your receipt will be attached to this expense."
                 : "You can still save manually even without an attached receipt file."}
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="button" variant="outline" onClick={clearScan} disabled={saving}>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button type="button" variant="outline" onClick={clearScan} disabled={saving} className="w-full sm:w-auto">
                 Cancel
               </Button>
-              <Button type="button" onClick={() => void handleSaveExpense()} disabled={saving}>
+              <Button type="button" onClick={() => void handleSaveExpense()} disabled={saving} className="w-full sm:w-auto">
                 {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
