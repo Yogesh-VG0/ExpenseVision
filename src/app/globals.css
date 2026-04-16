@@ -2,12 +2,17 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* UAE Dirham custom font */
+/* UAE Dirham symbol font (U+20C3) via dirham package */
 @font-face {
-  font-family: 'UAESymbol';
-  src: url('/uae-symbol.ttf') format('truetype');
+  font-family: "Dirham";
+  src:
+    url("/fonts/dirham.woff2") format("woff2"),
+    url("/fonts/dirham.woff") format("woff"),
+    url("/fonts/dirham.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
+  unicode-range: U+20C3;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -260,9 +265,9 @@
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
-/* ---- UAE Dirham symbol font ---- */
+/* ---- UAE Dirham symbol font — Dirham covers only U+20C3, rest falls through ---- */
 [data-currency="AED"] {
-  font-family: 'UAESymbol', var(--font-sans), system-ui, sans-serif;
+  font-family: "Dirham", var(--font-sans), system-ui, sans-serif;
 }
 
 /* ---- Glow effects ---- */

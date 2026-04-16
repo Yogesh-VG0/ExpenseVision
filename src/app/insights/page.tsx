@@ -28,19 +28,56 @@ export default async function InsightsPage() {
     .toISOString()
     .split("T")[0];
 
-  const [{ data: currentMonthExpenses }] = await Promise.all([
-    supabase
-      .from("expenses")
-      .select("*")
-      .eq("user_id", user.id)
-      .gte("date", startOfMonth)
-      .lte("date", endOfMonth)
-      .order("date", { ascending: false }),
-  ]);
+  const [{ data: currentMonthExpenses }, { data: savedInsights }] =
+    await Promise.all([
+      supabase
+        .from("expenses")
+        .select("*")
+        .eq("user_id", user.id)
+        .gte("date", startOfMonth)
+        .lte("date", endOfMonth)
+        .order("date", { ascending: false }),
+      supabase
+        .from("ai_insights")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(6),
+    ]);
+
+  const validTypes = [
+    "spending_summary",
+    "savings_tip",
+    "budget_alert",
+    "trend_analysis",
+  ] as const;
+
+  type InsightType = (typeof validTypes)[number];
+
+  const initialInsights = (savedInsights ?? [])
+    .filter((row: { insight_type: string }) =>
+      validTypes.includes(row.insight_type as InsightType)
+    )
+    .map(
+      (row: {
+        insight_type: string;
+        content: string;
+        data: Record<string, unknown> | null;
+        created_at: string;
+      }) => ({
+        type: row.insight_type as InsightType,
+        title: (row.data?.title as string) ?? row.insight_type.replace(/_/g, " "),
+        content: row.data?.title
+          ? row.content.replace(`${row.data.title}: `, "")
+          : row.content,
+        created_at: row.created_at,
+      })
+    );
 
   return (
     <InsightsClient
       currentMonthExpenses={(currentMonthExpenses as Expense[]) ?? []}
+      initialInsights={initialInsights}
     />
   );
 }

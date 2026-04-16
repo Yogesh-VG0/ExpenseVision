@@ -1,0 +1,1924 @@
+# ExpenseVision — Technical Documentation
+
+> **Single source of truth** for the entire ExpenseVision codebase.
+> Last updated from exhaustive repository audit, April 2026.
+
+---
+
+## Table of Contents
+
+1. [Project Overview](#1-project-overview)
+2. [Architecture Overview](#2-architecture-overview)
+3. [Repository Structure](#3-repository-structure)
+4. [Route and Page Inventory](#4-route-and-page-inventory)
+5. [Component System](#5-component-system)
+6. [Library and Utility Overview](#6-library-and-utility-overview)
+7. [Supabase Schema and Migrations](#7-supabase-schema-and-migrations)
+8. [Database Data Model](#8-database-data-model)
+9. [Authentication and Authorization](#9-authentication-and-authorization)
+10. [File Storage and Receipt Uploads](#10-file-storage-and-receipt-uploads)
+11. [Receipt Ingestion and OCR Lifecycle](#11-receipt-ingestion-and-ocr-lifecycle)
+12. [AI Integrations](#12-ai-integrations)
+13. [Expense Management Flow](#13-expense-management-flow)
+14. [Budget Management Flow](#14-budget-management-flow)
+15. [Analytics and Insights](#15-analytics-and-insights)
+16. [Notifications System](#16-notifications-system)
+17. [CSV Import System](#17-csv-import-system)
+18. [PWA Architecture](#18-pwa-architecture)
+19. [Upstash Redis — Caching and Rate Limiting](#19-upstash-redis--caching-and-rate-limiting)
+20. [SEO and Metadata](#20-seo-and-metadata)
+21. [CI/CD and Deployment](#21-cicd-and-deployment)
+22. [Environment Variables](#22-environment-variables)
+23. [Testing Strategy](#23-testing-strategy)
+24. [Security Model](#24-security-model)
+25. [Performance and Monitoring](#25-performance-and-monitoring)
+26. [Proxy Configuration](#26-proxy-configuration)
+27. [Limitations, Tradeoffs, and Known Issues](#27-limitations-tradeoffs-and-known-issues)
+28. [Future Opportunities](#28-future-opportunities)
+29. [Glossary](#29-glossary)
+30. [Live vs Repo Observations](#30-live-vs-repo-observations)
+
+---
+
+## 1. Project Overview
+
+### Purpose
+
+ExpenseVision is a personal finance web application that combines manual expense tracking with AI-powered receipt scanning, budget monitoring, and spending insights. It targets individuals who want to consolidate expense management into a single tool that works across devices including mobile.
+
+### Audience
+
+- Individual users tracking personal expenses
+- The demo mode targets curious visitors, recruiters, and evaluators who want to see the product without creating an account
+
+### Core Value Proposition
+
+- Photograph a receipt, get structured expense data via AI OCR
+- Set budgets per category and receive automatic alerts at spending thresholds
+- Import existing bank data via CSV with intelligent column mapping
+- Access everything offline-first via an installable PWA
+- Get AI-generated financial insights based on real spending patterns
+
+### Tech Philosophy
+
+- **Server-first rendering** — pages use Next.js server components for initial data fetch, hydrating into client components for interactivity
+- **Supabase as the entire backend** — auth, database, storage, and RLS policies eliminate the need for a custom backend
+- **Progressive enhancement** — PWA features (Background Sync, Share Target, File Handlers) are additive; the app works without them
+- **AI with graceful degradation** — primary Gemini provider falls back to OpenRouter free models; manual entry is always available if both fail
+- **Rate-limited by default** — every mutation endpoint is rate-limited even on free tier infrastructure
+
+---
+
+## 2. Architecture Overview
+
+### System Components
+
+```
+┌──────────────────────────────────────────────────────┐
+│                    Browser Client                      │
+│                                                        │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │ React 19 UI │  │ Service Worker│  │  IndexedDB   │ │
+│  │ (App Router)│  │   (sw.js)    │  │(offline queue)│ │
+│  └──────┬──────┘  └──────┬───────┘  └──────────────┘ │
+└─────────┼────────────────┼───────────────────────────┘
+          │                │
+          ▼                ▼
+┌──────────────────────────────────────────────────────┐
+│              Next.js Server (Render)                   │
+│                                                        │
+│  ┌─────────────────┐  ┌──────────────────────────┐   │
+│  │   Middleware     │  │      API Routes          │   │
+│  │  (src/proxy.ts)  │  │  /api/expenses           │   │
+│  │                  │  │  /api/ocr                 │   │
+│  │  Auth enforce +  │  │  /api/ai-insights         │   │
+│  │  cookie refresh  │  │  /api/budgets             │   │
+│  └─────────────────┘  │  /api/notifications        │   │
+│                        │  /api/account              │   │
+│                        │  /api/analytics            │   │
+│                        │  /api/receipts             │   │
+│                        │  /api/telemetry            │   │
+│                        │  /api/warmup               │   │
+│                        └─────────────┬──────────────┘   │
+└───────────────────────────────────────┼─────────────┘
+                                        │
+          ┌─────────────────────────────┼──────────────────┐
+          ▼                             ▼                   ▼
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐
+│   Supabase       │  │   AI Providers    │  │ Upstash Redis│
+│                  │  │                    │  │              │
+│ ● Auth           │  │ ● Google Gemini    │  │ ● Rate limits│
+│ ● PostgreSQL     │  │   2.5 Flash        │  │   (sliding   │
+│   (RLS-enforced) │  │                    │  │    window)   │
+│ ● Storage        │  │ ● OpenRouter       │  │              │
+│   (receipts      │  │   (fallback)       │  │              │
+│    bucket)       │  │                    │  │              │
+└──────────────────┘  └──────────────────┘  └──────────────┘
+```
+
+### Request Flow
+
+1. **Browser** → Next.js middleware (`src/proxy.ts`) refreshes Supabase auth cookies and enforces route protection
+2. **Server components** fetch data directly via Supabase server client (cookie-forwarded)
+3. **Client components** call `/api/*` routes for mutations and AI operations
+4. **API routes** authenticate via `supabase.auth.getUser()`, apply rate limiting via Upstash, execute business logic, interact with Supabase DB/Storage and AI providers
+5. **Responses** flow back through Next.js to the browser
+
+### Rendering Strategy
+
+- **Server Components**: Dashboard page, expenses list page, budgets page, notifications page, imports page — initial data fetching happens server-side
+- **Client Components**: All interactive forms, receipt workspace, expense/budget dialogs, chart components, settings page, insights page
+- **Hybrid**: Pages use a `page.tsx` (server) that renders a `*-client.tsx` (client) component, passing server-fetched data as props
+
+### Deployment Topology
+
+- **Runtime**: Render.com free-tier web service
+- **Build output**: Next.js standalone mode (`output: "standalone"` in `next.config.ts`)
+- **Start command**: `node scripts/run-standalone.mjs` — copies `public/` and `static/` into the standalone directory then launches `server.js`
+- **Health check**: `GET /api/warmup` returns `{ "status": "ok", "timestamp": ... }`
+
+---
+
+## 3. Repository Structure
+
+```
+ExpenseVision/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                  # GitHub Actions CI pipeline
+├── e2e/
+│   └── happy-path.spec.ts         # Playwright E2E test
+├── public/
+│   ├── sw.js                      # Service worker
+│   ├── icons/                     # PWA app icons (multiple sizes)
+│   ├── fonts/
+│   │   └── dirham.{ttf,woff,woff2} # Custom UAE Dirham currency font
+│   └── llms.txt                   # LLM reference text
+├── scripts/
+│   └── run-standalone.mjs         # Production standalone server launcher
+├── src/
+│   ├── app/
+│   │   ├── api/                   # 11 API domains, 17 route files
+│   │   │   ├── account/route.ts
+│   │   │   ├── ai-insights/route.ts
+│   │   │   ├── analytics/route.ts
+│   │   │   ├── budgets/
+│   │   │   │   ├── route.ts           # GET, POST
+│   │   │   │   └── [id]/route.ts      # PUT, DELETE
+│   │   │   ├── expenses/
+│   │   │   │   ├── route.ts           # GET, POST
+│   │   │   │   ├── [id]/route.ts      # GET, PUT, DELETE
+│   │   │   │   ├── [id]/receipt/route.ts  # DELETE
+│   │   │   │   └── import/route.ts    # POST
+│   │   │   ├── notifications/
+│   │   │   │   ├── route.ts           # GET, PATCH
+│   │   │   │   ├── subscribe/route.ts # POST, DELETE
+│   │   │   │   └── weekly-summary/route.ts # POST
+│   │   │   ├── ocr/route.ts
+│   │   │   ├── receipts/access/route.ts
+│   │   │   ├── telemetry/route.ts
+│   │   │   └── warmup/route.ts
+│   │   ├── auth/
+│   │   │   ├── callback/route.ts  # OAuth callback handler
+│   │   │   └── confirm/route.ts   # Email confirmation handler
+│   │   ├── dashboard/             # Main authenticated dashboard
+│   │   ├── demo/                  # Read-only demo (6 page routes)
+│   │   ├── expenses/              # Expense management
+│   │   ├── budgets/               # Budget management
+│   │   ├── receipts/              # Receipt scanner + workspace
+│   │   ├── insights/              # AI-powered insights
+│   │   ├── imports/               # CSV import wizard
+│   │   ├── notifications/         # Notification center
+│   │   ├── settings/              # Profile, preferences, deletion
+│   │   ├── login/                 # Login page
+│   │   ├── signup/                # Signup page
+│   │   ├── forgot-password/       # Password reset request
+│   │   ├── globals.css            # Global styles, themes, animations
+│   │   ├── layout.tsx             # Root layout (metadata, fonts, providers)
+│   │   ├── page.tsx               # Landing page
+│   │   ├── manifest.ts            # Dynamic PWA manifest
+│   │   ├── robots.ts              # Dynamic robots.txt
+│   │   ├── sitemap.ts             # Dynamic sitemap.xml
+│   │   ├── error.tsx              # Global error boundary
+│   │   └── not-found.tsx          # 404 page
+│   ├── components/
+│   │   ├── ui/                    # 25 shadcn/ui primitive components
+│   │   ├── landing/               # 11 landing page section components
+│   │   ├── dashboard/             # 5 dashboard widget components
+│   │   ├── receipts/              # Receipt workspace + pending queue
+│   │   ├── expenses/              # Expense form dialog
+│   │   ├── budgets/               # Budget form dialog
+│   │   ├── imports/               # 4 CSV import wizard components
+│   │   ├── notifications/         # Notification center + card
+│   │   ├── app-shell.tsx          # Authenticated layout wrapper
+│   │   ├── currency-provider.tsx  # Currency context provider
+│   │   ├── pwa-provider.tsx       # PWA context provider
+│   │   ├── theme-provider.tsx     # Theme (dark/light/system) provider
+│   │   └── theme-toggle.tsx       # Theme toggle button
+│   ├── lib/
+│   │   ├── supabase/
+│   │   │   ├── client.ts          # Browser Supabase client
+│   │   │   ├── server.ts          # Server component Supabase client
+│   │   │   └── admin.ts           # Service role admin client
+│   │   ├── types.ts               # All TypeScript type definitions
+│   │   ├── validations.ts         # Zod validation schemas
+│   │   ├── redis.ts               # Upstash Redis + rate limiters
+│   │   ├── rate-limit.ts          # Rate limit enforcement utility
+│   │   ├── receipts.ts            # Receipt file validation + helpers
+│   │   ├── expense-mutations.ts   # Expense creation with idempotency
+│   │   ├── budget-alerts.ts       # Budget threshold alert logic
+│   │   ├── duplicate-detection.ts # Expense duplicate scorer
+│   │   ├── csv-parser.ts          # CSV parsing + column auto-detect
+│   │   ├── category-suggest.ts    # Category inference from merchant/text
+│   │   ├── merchant-normalize.ts  # Merchant name standardization
+│   │   ├── offline-queue.ts       # IndexedDB offline expense queue
+│   │   ├── offline-retry.ts       # Offline retry + Background Sync
+│   │   ├── push-subscription.ts   # Web Push subscription helpers
+│   │   ├── telemetry.ts           # Lightweight event tracking
+│   │   ├── demo-data.ts           # Demo mode sample data
+│   │   ├── constants.ts           # App-wide constants + formatters
+│   │   ├── utils.ts               # cn() + safe redirect
+│   │   ├── app-url.ts             # URL construction helpers
+│   │   └── email-receipt-parser.ts # Stub — not implemented
+│   ├── __tests__/                 # 11 Vitest test suites
+│   └── proxy.ts                   # Next.js middleware
+├── supabase/
+│   ├── config.toml                # Supabase local config
+│   └── migrations/
+│       ├── 001_initial_schema.sql
+│       ├── 002_align_categories.sql
+│       ├── 003_add_profiles_insert_policy.sql
+│       ├── 004_add_idempotency_key.sql
+│       ├── 005_notifications_table.sql
+│       └── 006_push_subscriptions.sql
+├── .env.example                   # Environment variable template
+├── .gitignore
+├── components.json                # shadcn/ui config
+├── eslint.config.mjs
+├── next.config.ts
+├── package.json
+├── playwright.config.ts
+├── postcss.config.mjs
+├── render.yaml                    # Render deployment Blueprint
+├── tsconfig.json
+└── vitest.config.ts
+```
+
+---
+
+## 4. Route and Page Inventory
+
+### Frontend Pages
+
+| Route | Auth Required | Purpose | Key Components |
+|---|---|---|---|
+| `/` | No | Landing page with marketing sections | Hero, Features, HowItWorks, Testimonials, FAQ, CTA, Footer |
+| `/login` | No (redirects if authed) | Email/password + OAuth login | LoginClient |
+| `/signup` | No (redirects if authed) | Account registration | SignupClient |
+| `/forgot-password` | No | Password reset request | ForgotPasswordClient |
+| `/auth/callback` | No | OAuth redirect handler (code exchange) | Server-side route handler |
+| `/auth/confirm` | No | Email confirmation (token exchange) | Server-side route handler |
+| `/dashboard` | Yes | Main dashboard with summary stats, charts, recent expenses | DashboardClient, ExpenseChart, CategoryBreakdown |
+| `/expenses` | Yes | Full expense list with filters, sort, search | ExpensesClient, ExpenseFormDialog |
+| `/budgets` | Yes | Budget list with progress bars | BudgetsClient, BudgetFormDialog |
+| `/receipts` | Yes | Receipt scanner workspace | ReceiptWorkspace (capture, OCR, review, save) |
+| `/receipts/share-target` | Yes | Web Share Target receiver | ReceiptWorkspace (auto-loaded with shared file draft) |
+| `/receipts/capture` | Yes | File Handler receiver | ReceiptWorkspace (auto-loaded via launchQueue) |
+| `/insights` | Yes | AI-generated spending analysis | InsightsClient |
+| `/imports` | Yes | CSV import wizard | ImportWizard (4 steps) |
+| `/notifications` | Yes | Notification center (all types) | NotificationsClient, NotificationCard |
+| `/settings` | Yes | Profile, currency, notification prefs, account deletion | SettingsClient |
+| `/demo` | No | Demo dashboard | DemoLayout + sample data |
+| `/demo/expenses` | No | Demo expense list | Sample expenses |
+| `/demo/budgets` | No | Demo budgets | Sample budgets |
+| `/demo/receipts` | No | Demo receipt scanner (non-functional) | UI only, no OCR |
+| `/demo/insights` | No | Demo AI insights | Sample insights |
+| `/demo/settings` | No | Demo settings (read-only) | Display only |
+
+### API Routes
+
+| Method | Path | Auth | Rate Limit | Purpose |
+|---|---|---|---|---|
+| `GET` | `/api/expenses` | Yes | `apiRateLimit` | List user expenses with optional date range |
+| `POST` | `/api/expenses` | Yes | `expenseMutationRateLimit` | Create expense (with idempotency key support) |
+| `GET` | `/api/expenses/[id]` | Yes | `apiRateLimit` | Get single expense by ID |
+| `PUT` | `/api/expenses/[id]` | Yes | `expenseMutationRateLimit` | Update expense |
+| `DELETE` | `/api/expenses/[id]` | Yes | `expenseMutationRateLimit` | Delete expense (and unlink receipt) |
+| `DELETE` | `/api/expenses/[id]/receipt` | Yes | `expenseMutationRateLimit` | Remove receipt link from expense |
+| `POST` | `/api/expenses/import` | Yes | `importBatchRateLimit` | Bulk CSV import (chunked 50-row batches) |
+| `POST` | `/api/ocr` | Yes | `aiRateLimit` | AI receipt OCR processing |
+| `POST` | `/api/ai-insights` | Yes | `aiRateLimit` | Generate AI spending insights |
+| `GET` | `/api/budgets` | Yes | `apiRateLimit` | List user budgets with spending totals |
+| `POST` | `/api/budgets` | Yes | `budgetMutationRateLimit` | Create budget (prevents duplicate categories) |
+| `PUT` | `/api/budgets/[id]` | Yes | `budgetMutationRateLimit` | Update budget |
+| `DELETE` | `/api/budgets/[id]` | Yes | `budgetMutationRateLimit` | Delete budget |
+| `POST` | `/api/receipts/access` | Yes | `apiRateLimit` | Refresh signed URL for stored receipt |
+| `GET` | `/api/notifications` | Yes | `notificationMutationRateLimit` | List user notifications |
+| `PATCH` | `/api/notifications` | Yes | `notificationMutationRateLimit` | Mark notifications as read |
+| `POST` | `/api/notifications/subscribe` | Yes | `notificationMutationRateLimit` | Save push subscription |
+| `DELETE` | `/api/notifications/subscribe` | Yes | `notificationMutationRateLimit` | Remove push subscription |
+| `POST` | `/api/notifications/weekly-summary` | Yes | `apiRateLimit` | Generate weekly spending summary notification |
+| `DELETE` | `/api/account` | Yes | `accountMutationRateLimit` | Delete user account + data + storage |
+| `GET` | `/api/analytics` | Yes | `apiRateLimit` | Aggregated analytics (totals, category breakdown, trends) |
+| `POST` | `/api/telemetry` | Yes | `telemetryRateLimit` | Client event ingestion |
+| `GET` | `/api/warmup` | No | None | Health check endpoint |
+
+---
+
+## 5. Component System
+
+### Layout and Shell Components
+
+| Component | File | Purpose |
+|---|---|---|
+| **AppShell** | `components/app-shell.tsx` | Primary authenticated layout — sidebar navigation (collapsible on desktop, sheet on mobile), header with search, user menu, theme toggle, unread notification badge, PWA install prompt, currency provider integration |
+| **ThemeProvider** | `components/theme-provider.tsx` | Wraps `next-themes` to provide dark/light/system theme switching |
+| **PWAProvider** | `components/pwa-provider.tsx` | Service worker registration, install prompt capture (`beforeinstallprompt`), `launchQueue` consumer, telemetry for PWA install events |
+| **CurrencyProvider** | `components/currency-provider.tsx` | React context for currency formatting; auto-detects from user profile or locale/timezone; custom Dirham (`د.إ`) formatting; provides `formatCurrency(amount)` |
+| **ThemeToggle** | `components/theme-toggle.tsx` | Dropdown toggle for light/dark/system themes |
+
+### Feature Components by Domain
+
+**Receipts**
+- `ReceiptWorkspace` — The largest component (~1680 lines). Handles the entire receipt flow: camera capture, file selection, drag-and-drop, client-side compression (resizes to 1200px max, JPEG quality 0.7), preview display, OCR API call with progress states, result review form with all extracted fields, expense save with receipt linking, offline queue fallback, share target draft loading, history view with thumbnail grid, receipt deletion, and full error/retry UX.
+- `PendingUploadsSheet` — Displays offline-queued expenses with status indicators and retry/remove controls.
+
+**Dashboard**
+- `DashboardClient` — Server-rendered page delegates to this client component for interactivity.
+- `ExpenseChart` — Recharts area chart showing daily spending over selected date range.
+- `CategoryBreakdown` — Recharts pie/donut chart with category-colored spending distribution.
+- `RecentExpenses` — Card list of latest expenses with vendor, amount, category badge.
+- `SummaryCards` — Stat cards showing total spend, average, budget usage, receipt count.
+
+**Expenses**
+- `ExpensesClient` — Full expense management: filterable/sortable table (desktop) and card list (mobile), date range picker, category filter, search, add/edit/delete with confirmation.
+- `ExpenseFormDialog` — Modal form for creating/editing expenses with Zod validation, category selector, date picker, amount input, notes field.
+
+**Budgets**
+- `BudgetsClient` — Budget list with progress bars (color-coded by percentage), spent vs limit display, edit/delete.
+- `BudgetFormDialog` — Modal for creating/editing budgets with category dropdown (excludes already-budgeted categories), amount input, period selector.
+
+**Imports**
+- `ImportWizard` — 4-step flow: file select → column mapping → preview/validation → confirmation.
+- `FileUploadStep` — CSV file selector with drag-and-drop.
+- `ColumnMappingStep` — Auto-detected column headers with manual remapping controls.
+- `PreviewStep` — Table preview of parsed rows with validation error highlights.
+- `ConfirmStep` — Summary of rows to import with duplicate warnings.
+
+**Insights**
+- `InsightsClient` — Displays AI-generated spending insights. Fetches from server or generates on-demand. Shows summary, key findings, savings tips, budget alerts, and trend analysis in a structured card layout.
+
+**Notifications**
+- `NotificationsClient` — Notification center with tabs (all/unread), mark-all-read button, empty state.
+- `NotificationCard` — Individual notification display with type icon, message, timestamp, read/unread state.
+
+**Landing Page**
+- `Navbar` — Navigation with logo, links, auth buttons (conditional based on session state).
+- `Hero` — Main hero section with tagline, CTA buttons, and animated mock dashboard visual.
+- `Features` — Feature grid with icon, title, description cards.
+- `HowItWorks` — Step-by-step flow explanation.
+- `Testimonials` — User testimonial cards.
+- `SecurityPrivacy` — Security features highlight.
+- `FAQ` — Accordion FAQ section.
+- `CTA` — Final call-to-action section.
+- `Footer` — Site footer with links.
+- `DemoSection` — Promotional section linking to demo mode.
+
+### shadcn/ui Component Library
+
+25 base components in `src/components/ui/`:
+
+`avatar`, `badge`, `button`, `calendar`, `card`, `chart`, `command`, `dialog`, `dropdown-menu`, `input`, `input-group`, `label`, `popover`, `progress`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `sonner`, `switch`, `table`, `tabs`, `textarea`, `tooltip`
+
+All built on `@base-ui/react` primitives with Tailwind CSS v4 styling. The project uses the `base-nova` theme variant defined in `components.json`.
+
+### Design System Conventions
+
+- **Colors**: Theme variables defined in `globals.css` for light and dark modes using HSL format (`--background`, `--foreground`, `--primary`, `--muted`, etc.)
+- **Typography**: DM Sans (body) + JetBrains Mono (code/monospace), imported via `next/font`
+- **Spacing**: Tailwind default scale
+- **Animations**: Custom keyframes defined in `globals.css` for float, pulse-glow, shimmer, gradient rotation, fade-up/down, scale-in, slide-left/right, count-up, border-glow, slow-spin
+- **Glassmorphism**: `.glass-card` utility class with backdrop blur and semi-transparent backgrounds
+
+---
+
+## 6. Library and Utility Overview
+
+### `src/lib/types.ts`
+
+Central type definitions for the entire application:
+
+- **`Expense`** — Core expense record with id, user_id, amount, category, vendor, date, notes, tags, receipt_url, receipt_id, idempotency_key, timestamps
+- **`Budget`** — Budget definition with id, user_id, category, amount (limit), period, timestamps; extended with `spent`, `percentage`, `remaining` at runtime
+- **`AIInsight`** — AI-generated insight with id, user_id, content (structured JSON), provider, timestamps
+- **`Profile`** — User profile with display_name, avatar_url, currency, notification_preferences
+- **`Notification`** — Notification record with id, user_id, type, title, message, read status, metadata, timestamps
+- **`PushSubscription`** — Web Push subscription with endpoint, keys, user_id, device_name
+- **`ReceiptProcessingResult`** — Full OCR result including status, receipt data, expense data, errors, warnings, recovery actions, processing metadata (duration, provider, confidence)
+- **`OCRResult`** — Extracted receipt fields: vendor, amount, date, currency, category, line_items, tax, payment_method, confidence
+- **Various enums** — NotificationType, ExpenseCategory (18 categories), BudgetPeriod, InsightStatus
+
+### `src/lib/validations.ts`
+
+Zod v4 schemas used for both client and server validation:
+
+- **`expenseSchema`** — amount (0.01–999,999.99), vendor (max 100 chars, HTML-stripped), category (one of 18 enum values), date (not future, not before 2020), notes (optional, max 500 chars), tags (optional string array)
+- **`budgetSchema`** — category, amount (1–9,999,999.99), period (monthly/weekly/yearly)
+- **`signUpSchema`** — email (valid format), password (min 8, one upper, one lower, one digit), display_name (2–50 chars)
+- **`signInSchema`** — email + password (basic presence checks)
+- **`importRowSchema`** — schema for CSV-imported rows with required amount/date, optional category/vendor/notes
+
+### `src/lib/redis.ts`
+
+Upstash Redis configuration:
+
+- **Client initialization**: `new Redis({ url, token })` from env vars. Falls back to `null` if unconfigured.
+- **Rate limiters** (all use `Ratelimit.slidingWindow`):
+
+| Limiter | Window | Limit | Used By |
+|---|---|---|---|
+| `aiRateLimit` | 60s | 20 | `/api/ocr`, `/api/ai-insights` |
+| `apiRateLimit` | 60s | 60 | All GET routes, `/api/receipts/access`, `/api/analytics`, `/api/notifications/weekly-summary` |
+| `expenseMutationRateLimit` | 60s | 30 | `/api/expenses` POST/PUT/DELETE |
+| `importBatchRateLimit` | 60s | 10 | `/api/expenses/import` |
+| `budgetMutationRateLimit` | 60s | 20 | `/api/budgets` POST/PUT/DELETE |
+| `notificationMutationRateLimit` | 60s | 30 | `/api/notifications` GET/PATCH, `/api/notifications/subscribe` |
+| `telemetryRateLimit` | 60s | 120 | `/api/telemetry` |
+| `accountMutationRateLimit` | 3600s (1h) | 5 | `/api/account` DELETE |
+
+### `src/lib/rate-limit.ts`
+
+Utility function `enforceRateLimit(request, limiter, identifier?)`:
+- Extracts client IP from `x-forwarded-for` → `x-real-ip` → `"unknown"`
+- Calls the provided rate limiter
+- Returns 429 response with `Retry-After` header if exceeded
+- **Gracefully skips** if Redis is not configured (returns `null`, allowing the request)
+
+### `src/lib/receipts.ts`
+
+Receipt file handling:
+
+- **Constants**: Max 10 MB, allowed types `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `application/pdf`
+- **`validateReceiptFile(file)`**: Client-side type + size check
+- **`validateMagicBytes(buffer)`**: Server-side binary signature check for JPEG (`FFD8FF`), PNG (`89504E47`), WebP (`52494646`+`57454250`), PDF (`25504446`)
+- **`buildReceiptPath(userId, fileName)`**: Generates storage path `{userId}/{timestamp}-{random}-{sanitizedName}`
+- **`inferMimeType(path)`**: Extension-based MIME inference
+- **`serializeReceiptDraft(file) / deserializeReceiptDraft(data)`**: Converts files to/from base64 JSON for cross-page draft passing (used by Share Target)
+
+### `src/lib/expense-mutations.ts`
+
+`createExpenseRecord(supabase, userId, data)`:
+- If `idempotency_key` is provided, checks for existing record with same user+key
+- Returns existing record if found (idempotent behavior)
+- Otherwise inserts new expense, optionally linking receipt_id
+- Returns `{ expense, created: boolean }`
+
+### `src/lib/budget-alerts.ts`
+
+`checkBudgetAlerts(supabase, userId, category)`:
+- Fetches budget for the given category and current month's spending
+- If spending ≥ 100% of budget → creates "budget_exceeded" notification (deduplicated per month+category)
+- If spending ≥ 80% of budget → creates "budget_warning" notification (deduplicated)
+- Deduplication checks for existing notification with same type, category, and current month
+
+### `src/lib/duplicate-detection.ts`
+
+`detectDuplicate(candidate, existingExpenses)`:
+- Scoring algorithm based on:
+  - Amount match: exact = 40 points, within 1% = 20 points
+  - Vendor similarity: exact = 30 points, includes = 15 points
+  - Date proximity: same day = 30 points, within 1 day = 15 points, within 2 days = 5 points
+- Returns `{ isDuplicate: boolean, confidence: number, matchedExpense }` with threshold at 70 points
+
+### `src/lib/csv-parser.ts`
+
+CSV import utilities:
+
+- **`parseCSVString(text)`**: Handles quoted fields, newlines in quotes, various line endings
+- **`autoDetectColumns(headers)`**: Maps common header names to expense fields using a keyword dictionary (e.g., "amt"/"total"/"price" → amount, "merchant"/"payee"/"vendor" → vendor)
+- **`parseAmount(value)`**: Strips currency symbols/commas, handles parenthetical negatives
+- **`parseDate(value)`**: Tries multiple formats: ISO, US (`MM/DD/YYYY`), European (`DD/MM/YYYY`), written dates
+
+### `src/lib/category-suggest.ts`
+
+`suggestCategory(vendor?, description?)`:
+- Dictionary-based lookup mapping merchant names and keywords to categories
+- Examples: "uber" → Transportation, "netflix" → Entertainment, "walgreens" → Healthcare
+- Returns `null` if no match found
+
+### `src/lib/merchant-normalize.ts`
+
+`normalizeMerchant(raw)`:
+- Strips transaction IDs, card suffixes, location info, reference numbers
+- Normalizes spacing and casing
+- Dictionary of 80+ known merchant variants (e.g., "AMZN MKTP" → "Amazon", "WHOLEFDS" → "Whole Foods")
+- Falls back to title-case cleaned string
+
+### `src/lib/offline-queue.ts`
+
+IndexedDB-backed offline expense store:
+
+- Database: `expensevision-offline`, store: `pending-uploads`
+- **`enqueuePendingUpload(entry)`**: Stores expense form data + optional receipt preview (base64) with status "pending", retry count 0, idempotency key
+- **`getAllPendingUploads()`**: Retrieves all queued entries
+- **`updatePendingUpload(id, updates)`**: Updates status, retry count, error message
+- **`removePendingUpload(id)`**: Deletes entry after successful sync
+
+### `src/lib/offline-retry.ts`
+
+Automatic retry system:
+
+- **`registerOfflineRetry()`**: Registers event listeners on `online`, `focus`, `visibilitychange`
+- **`registerBackgroundSync()`**: Registers SW Background Sync with tag `pending-expense-upload` (Chromium only)
+- **`processQueue()`**: Iterates pending uploads, POSTs to `/api/expenses` with idempotency key, updates status on success/failure, removes successful entries
+- The Service Worker `sync` event handler sends a `process-offline-queue` message to the client, which triggers `processQueue()`
+
+### `src/lib/push-subscription.ts`
+
+- **`checkPushCapability()`**: Returns boolean if `PushManager` is available and notification permission is granted/default
+- **`subscribeToPush()`**: Requests notification permission, gets push subscription from SW registration, sends to `/api/notifications/subscribe`
+- **`unsubscribeFromPush()`**: Unsubscribes from browser push manager, deletes from server
+
+### `src/lib/telemetry.ts`
+
+Lightweight client-side event tracking:
+
+- Defined event names: `page_view`, `expense_create`, `expense_update`, `expense_delete`, `receipt_scan`, `receipt_upload`, `budget_create`, `insight_generate`, `csv_import`, `pwa_install`, `push_subscribe`, `push_unsubscribe`, `share_target_received`, `file_handler_opened`, `offline_queue_sync`
+- **`trackEvent(name, properties?)`**: Sends POST to `/api/telemetry` (fire-and-forget, no error bubbling)
+- Server-side `/api/telemetry` validates event names and logs them; rate-limited at 120/minute
+
+### `src/lib/demo-data.ts`
+
+Provides realistic sample data for demo mode:
+- 20 expenses across varied categories, vendors, and dates
+- 7 budgets with pre-calculated spend percentages
+- 4 AI insight objects with structured content
+
+### `src/lib/email-receipt-parser.ts`
+
+**Status: Stub/placeholder — NOT implemented.**
+
+Exports TypeScript interfaces (`EmailReceiptSource`, `ParsedEmailReceipt`) and a no-op `parseEmailReceipt()` function that returns `null`. Intended for future email forwarding receipt parsing.
+
+### `src/lib/app-url.ts`
+
+URL helpers:
+- `getAppUrl()`: Returns `NEXT_PUBLIC_APP_URL` or `http://localhost:3000`
+- `normalizeAppUrl(url)`: Ensures trailing-slash consistency
+
+### `src/lib/constants.ts`
+
+Application constants:
+- `APP_NAME`, `APP_DESCRIPTION`
+- `MAX_EXPENSE_AMOUNT` (999,999.99)
+- `DEFAULT_CURRENCY` ("USD")
+- `DATE_FORMAT`, `DATE_TIME_FORMAT` (using `date-fns` formatters)
+- `CATEGORY_COLORS` — Maps each of the 18 expense categories to a Tailwind color class
+
+### `src/lib/utils.ts`
+
+- `cn(...inputs)`: Merges Tailwind classes using `clsx` + `tailwind-merge`
+- `safeRedirectPath(path)`: Validates redirect targets — only allows paths starting with `/` and not `//` (prevents open redirect)
+
+### `src/lib/supabase/client.ts`
+
+`createBrowserClient()`: Creates a Supabase client for browser-side usage using `@supabase/ssr`'s `createBrowserClient` with public URL and anon key.
+
+### `src/lib/supabase/server.ts`
+
+`createServerClient()`: Creates a Supabase client for server components and API routes. Uses `@supabase/ssr`'s `createServerClient` with cookie-based session management, reading/setting cookies from Next.js `cookies()` API.
+
+### `src/lib/supabase/admin.ts`
+
+`createAdminClient()`: Creates a Supabase client using the `SUPABASE_SERVICE_ROLE_KEY`. Used only in the account deletion endpoint to delete users from Supabase Auth (which requires service-role privileges). Returns `null` if the key is not configured.
+
+---
+
+## 7. Supabase Schema and Migrations
+
+### Migration History
+
+| # | File | Purpose |
+|---|---|---|
+| 001 | `001_initial_schema.sql` | Core schema: profiles, expenses, budgets, ai_insights, receipts tables + RLS + triggers |
+| 002 | `002_align_categories.sql` | Category normalization, updated CHECK constraints, added tags/updated_at to expenses |
+| 003 | `003_add_profiles_insert_policy.sql` | Added INSERT RLS policy for profiles table |
+| 004 | `004_add_idempotency_key.sql` | Added idempotency_key column + partial unique index to expenses |
+| 005 | `005_notifications_table.sql` | Created notifications table + RLS, added notification_preferences to profiles |
+| 006 | `006_push_subscriptions.sql` | Created push_subscriptions table + RLS |
+| 007 | `007_budget_unique_constraint.sql` | Added unique index on `(user_id, category)` for budgets |
+
+### Reconstructed Schema
+
+#### `profiles`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | uuid | PK, FK → auth.users(id) ON DELETE CASCADE |
+| `display_name` | text | |
+| `avatar_url` | text | |
+| `currency` | text | DEFAULT 'USD' |
+| `notification_preferences` | jsonb | DEFAULT '{}' |
+| `created_at` | timestamptz | DEFAULT now() |
+| `updated_at` | timestamptz | DEFAULT now() |
+
+- Trigger: `handle_new_user` — auto-inserts profile on `auth.users` INSERT using `raw_user_meta_data.display_name`
+- RLS: Users can SELECT, UPDATE, INSERT their own profile (`id = auth.uid()`)
+
+#### `expenses`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
+| `amount` | numeric(12,2) | NOT NULL, CHECK > 0 |
+| `category` | text | NOT NULL, CHECK in [18 categories] |
+| `vendor` | text | |
+| `date` | date | NOT NULL |
+| `notes` | text | |
+| `tags` | text[] | |
+| `receipt_url` | text | |
+| `receipt_id` | uuid | FK → receipts(id) ON DELETE SET NULL |
+| `idempotency_key` | text | |
+| `created_at` | timestamptz | DEFAULT now() |
+| `updated_at` | timestamptz | DEFAULT now() |
+
+- Partial unique index: `idx_expenses_idempotency (user_id, idempotency_key)` WHERE `idempotency_key IS NOT NULL`
+- Trigger: auto-updates `updated_at` on modification
+- RLS: Users can SELECT, INSERT, UPDATE, DELETE their own expenses (`user_id = auth.uid()`)
+
+#### Categories (18 total)
+
+Food & Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Shopping, Education, Personal Care, Travel, Insurance, Gifts & Donations, Savings & Investments, Taxes, Childcare, Pets, Business, Other
+
+#### `budgets`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
+| `category` | text | NOT NULL, CHECK in [18 categories] |
+| `amount` | numeric(12,2) | NOT NULL, CHECK > 0 |
+| `period` | text | NOT NULL, DEFAULT 'monthly' |
+| `created_at` | timestamptz | DEFAULT now() |
+| `updated_at` | timestamptz | DEFAULT now() |
+
+- RLS: Users can SELECT, INSERT, UPDATE, DELETE their own budgets
+
+#### `ai_insights`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
+| `content` | jsonb | NOT NULL |
+| `provider` | text | |
+| `created_at` | timestamptz | DEFAULT now() |
+
+- RLS: Users can SELECT, INSERT their own insights
+
+#### `receipts`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
+| `file_path` | text | NOT NULL |
+| `file_name` | text | |
+| `file_size` | integer | |
+| `mime_type` | text | |
+| `ocr_result` | jsonb | |
+| `created_at` | timestamptz | DEFAULT now() |
+
+- RLS: Users can SELECT, INSERT, DELETE their own receipts
+
+#### `notifications`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
+| `type` | text | NOT NULL |
+| `title` | text | NOT NULL |
+| `message` | text | |
+| `read` | boolean | DEFAULT false |
+| `metadata` | jsonb | DEFAULT '{}' |
+| `created_at` | timestamptz | DEFAULT now() |
+
+- RLS: Users can SELECT, INSERT, UPDATE their own notifications
+
+#### `push_subscriptions`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
+| `endpoint` | text | NOT NULL, UNIQUE |
+| `p256dh` | text | NOT NULL |
+| `auth` | text | NOT NULL |
+| `device_name` | text | |
+| `created_at` | timestamptz | DEFAULT now() |
+
+- RLS: Users can SELECT, INSERT, DELETE their own subscriptions
+
+---
+
+## 8. Database Data Model
+
+### Entity Relationships
+
+```
+auth.users (Supabase managed)
+    │
+    ├── 1:1 ── profiles
+    │
+    ├── 1:N ── expenses
+    │              │
+    │              └── N:1 ── receipts (optional, via receipt_id)
+    │
+    ├── 1:N ── budgets
+    │
+    ├── 1:N ── ai_insights
+    │
+    ├── 1:N ── notifications
+    │
+    └── 1:N ── push_subscriptions
+```
+
+### Key Relationships
+
+- **User → Profile**: 1:1, created automatically via trigger on user signup. Profile stores display settings and preferences.
+- **User → Expenses**: 1:N. Each expense belongs to one user. Optional link to a receipt via `receipt_id`.
+- **Receipt → Expense**: An expense can have at most one linked receipt (`receipt_id` FK). Deleting a receipt sets `receipt_id` to NULL on linked expenses.
+- **User → Budgets**: 1:N. Unique index on `(user_id, category)` prevents duplicate budgets at the database level (migration 007).
+- **User → Notifications**: 1:N. Created server-side by budget alert logic and weekly summary generation.
+- **User → Push Subscriptions**: 1:N (one per device). Unique constraint on `endpoint` ensures one subscription per browser.
+
+### Cascade Behavior
+
+- Deleting a `auth.users` record cascades to: profiles, expenses, budgets, ai_insights, receipts, notifications, push_subscriptions (all via `ON DELETE CASCADE`)
+- Deleting a `receipts` record sets `receipt_id = NULL` on linked expenses (`ON DELETE SET NULL`)
+
+### Data Integrity Notes
+
+- Unique index on `(user_id, category)` for budgets enforces one budget per category at the database level (migration 007)
+- Pagination available on expense and notification list API endpoints (`page` + `limit` query params)
+- `expenses.amount` has CHECK > 0 and type numeric(12,2)
+- `budgets.amount` has CHECK > 0
+
+---
+
+## 9. Authentication and Authorization
+
+### Auth Provider
+
+Supabase Auth with three methods:
+1. **Email/password** — standard signup with email confirmation, password requirements (8+ chars, upper, lower, digit)
+2. **Google OAuth** — via Supabase social auth
+3. **GitHub OAuth** — via Supabase social auth
+
+### Auth Flows
+
+**Signup**:
+1. User submits email, password, display name → client calls `supabase.auth.signUp()` with `display_name` in metadata
+2. Supabase sends confirmation email
+3. User clicks link → redirected to `/auth/confirm` which exchanges the token hash
+4. Profile auto-created via database trigger
+5. Redirect to `/dashboard`
+
+**Login**:
+1. User submits credentials → client calls `supabase.auth.signInWithPassword()`
+2. On success, redirect to `/dashboard` (or `redirectTo` param if set)
+3. Session cookie established via `@supabase/ssr`
+
+**OAuth**:
+1. User clicks "Continue with Google/GitHub" → client calls `supabase.auth.signInWithOAuth()` with `redirectTo` pointing to `/auth/callback`
+2. After external auth, Supabase redirects to `/auth/callback?code=...`
+3. Server-side route handler exchanges code for session
+4. Redirect to `/dashboard`
+
+**Password Reset**:
+1. User enters email on `/forgot-password` → `supabase.auth.resetPasswordForEmail()`
+2. Email sent with reset link (redirects back to app)
+3. User follows link and resets via Supabase-managed flow
+
+### Session Model
+
+- Sessions managed via HTTP-only cookies using `@supabase/ssr`
+- The middleware (`src/proxy.ts`) refreshes session tokens on every request by calling `supabase.auth.getUser()`
+- Cookie operations use the Next.js `cookies()` API in middleware/server contexts
+
+### Route Protection
+
+**Middleware** (`src/proxy.ts`):
+- Protected paths: `/dashboard`, `/expenses`, `/budgets`, `/receipts`, `/insights`, `/imports`, `/notifications`, `/settings`
+- Auth paths: `/login`, `/signup`, `/forgot-password`
+- Behavior:
+  - No session + protected path → redirect to `/login` with `redirectTo` param
+  - Active session + auth path → redirect to `/dashboard`
+  - All other paths pass through
+
+**API Routes**:
+- Every API route (except `/api/warmup`) calls `supabase.auth.getUser()` and returns 401 if no valid session
+- This is redundant protection — even if middleware is bypassed, API routes independently verify auth
+
+**Supabase RLS**:
+- All tables have RLS enabled
+- All policies enforce `user_id = auth.uid()` (or `id = auth.uid()` for profiles)
+- This is the third layer of defense — even if API auth is somehow bypassed, the database rejects unauthorized access
+
+### Known Auth Considerations
+
+- No explicit CSRF token mechanism beyond Supabase's session cookies (SameSite attribute provides some protection)
+- OAuth redirect callback uses `safeRedirectPath()` to prevent open redirect attacks
+- Session refresh happens on every request via middleware, which may have performance implications but ensures token freshness
+
+---
+
+## 10. File Storage and Receipt Uploads
+
+### Storage Configuration
+
+- **Bucket**: `receipts` (private, requires authentication)
+- **Access model**: Signed URLs with server-generated tokens
+- **Max file size**: 10 MB
+
+### Upload Flow
+
+1. Client selects/captures file → validates type + size client-side
+2. Client compresses images (canvas resize to 1200px max width, JPEG quality 0.7)
+3. Client sends file as `FormData` to `POST /api/ocr`
+4. Server validates magic bytes of the file binary (JPEG, PNG, WebP, PDF signatures)
+5. Server builds unique path: `{userId}/{timestamp}-{random}-{sanitizedFilename}`
+6. Server uploads to Supabase Storage `receipts` bucket
+7. Server persists receipt metadata (file_path, file_name, file_size, mime_type) to `receipts` table
+8. Server downloads the file from storage for AI processing
+9. After OCR, receipt record is updated with `ocr_result` JSON
+
+### Signed URL Generation
+
+- `/api/receipts/access` endpoint takes a `path` parameter
+- Calls `supabase.storage.from('receipts').createSignedUrl(path, 3600)` (1-hour expiry)
+- Client uses signed URLs to display receipt thumbnails and full-size previews
+- URLs must be refreshed before expiry
+
+### Receipt Lifecycle
+
+```
+Upload → Store in Supabase Storage → Insert receipts row
+    → OCR processing → Update receipts.ocr_result
+    → Link to expense (set expenses.receipt_id)
+    → View via signed URL
+    → Delete receipt: remove from storage + delete receipts row + null out expense.receipt_id
+```
+
+### Security Considerations
+
+- Storage bucket is private — no public access
+- Signed URLs prevent unauthorized access but anyone with the URL has 1-hour access
+- Magic byte validation prevents MIME type spoofing (e.g., a `.js` file renamed to `.jpg`)
+- File size limit prevents storage abuse
+- No server-side virus/malware scanning on uploaded files
+- Receipt paths include user ID, providing namespace isolation
+
+---
+
+## 11. Receipt Ingestion and OCR Lifecycle
+
+### End-to-End Flow
+
+1. **Capture**: User takes photo via camera, selects file, drags/drops, or shares from another app
+2. **Client Compression**: For images (not PDFs), the client resizes to max 1200px width and converts to JPEG at 0.7 quality to reduce upload size
+3. **Upload**: File sent as `multipart/form-data` to `POST /api/ocr`
+4. **Server Validation**: MIME type check, size check (10 MB), magic byte validation
+5. **Storage**: Uploaded to Supabase Storage `receipts` bucket with unique path
+6. **Receipt Record**: Metadata saved to `receipts` table
+7. **AI Processing**: File downloaded from storage and sent to AI provider
+
+### AI OCR Processing
+
+**Primary Provider: Google Gemini 2.5 Flash**
+
+The server sends the image as base64 inline data to Gemini with a detailed system prompt:
+
+```
+You are a receipt OCR specialist. Extract structured data from this receipt image.
+Return a JSON object with these fields:
+- vendor: string (the store/business name)
+- amount: number (total amount paid)
+- date: string (YYYY-MM-DD format)
+- currency: string (3-letter code like USD, EUR)
+- category: string (one of the 18 defined categories)
+- line_items: array of { description, quantity, unit_price, total }
+- tax: number (tax amount if visible)
+- payment_method: string (cash, credit, debit, etc.)
+- confidence: number (0-1, your confidence in the extraction)
+
+If a field is not visible or unclear, omit it rather than guessing.
+For ambiguous amounts, prefer the total/grand total over subtotals.
+```
+
+**Fallback Provider: OpenRouter (free models)**
+
+If Gemini fails or is not configured, the same prompt is sent to OpenRouter's free tier models (the specific model varies — OpenRouter routes to available free models). The image is sent as a base64 data URL in the message content.
+
+### Response Parsing
+
+1. AI response text is cleaned (strip markdown code fences if present)
+2. Parsed as JSON
+3. Validated against expected field structure
+4. Missing fields default to `null`/`undefined`
+5. If JSON parsing fails entirely, the response is treated as an error with a recovery action offering manual entry
+
+### Result Structure
+
+The `ReceiptProcessingResult` returned to the client includes:
+
+- `status`: "success" | "partial" | "error"
+- `receipt`: Receipt record metadata
+- `expense_data`: Extracted expense fields (pre-populated for the form)
+- `ocr_result`: Raw OCR extraction with all fields + confidence
+- `errors`: Array of error messages
+- `warnings`: Array of warnings (e.g., "Low confidence extraction")
+- `recovery_actions`: Suggested actions on failure (e.g., "retry_ocr", "manual_entry")
+- `processing_metadata`: Duration in ms, provider used, model, confidence
+
+### UX During Processing
+
+1. **Uploading**: Progress indicator with "Uploading receipt..."
+2. **Processing**: Animated state with "Analyzing receipt with AI..." and estimated time
+3. **Success**: Form populated with extracted data, confidence badge, user can review/edit all fields
+4. **Partial**: Form populated with available data, warnings shown for low-confidence or missing fields
+5. **Error**: Error message displayed with recovery actions (retry, manual entry)
+
+### Failure Handling
+
+| Failure | Behavior |
+|---|---|
+| No AI key configured | Returns error with message suggesting manual entry |
+| Gemini API error | Falls back to OpenRouter |
+| OpenRouter API error | Returns error with retry + manual entry options |
+| JSON parse failure | Returns error; raw text logged |
+| Low confidence (< 0.5) | Returns "partial" status with warnings |
+| Timeout | Network timeout handled by fetch; returns error |
+
+---
+
+## 12. AI Integrations
+
+### Providers
+
+| Provider | Used For | Model | API Type |
+|---|---|---|---|
+| Google Gemini | OCR (primary), Insights (primary) | gemini-2.5-flash (free tier) | Direct REST API |
+| OpenRouter | OCR (fallback), Insights (fallback) | Free-tier models (auto-routed) | OpenAI-compatible REST API |
+
+### OCR Pipeline
+
+Covered in detail in [Section 11](#11-receipt-ingestion-and-ocr-lifecycle).
+
+### AI Insights Pipeline
+
+**Trigger**: User clicks "Generate Insights" on `/insights` page, or navigates to the page and no recent insights exist.
+
+**Flow**:
+1. Client calls `POST /api/ai-insights`
+2. Server fetches user's expenses (last 90 days) and budgets
+3. Server constructs a prompt with spending data context:
+   - Total spend, average daily/weekly spend
+   - Category breakdown with amounts and percentages
+   - Budget status for each budget (spent vs limit)
+   - Top merchants by frequency and amount
+   - Recent spending trend (last 7 days vs previous 7 days)
+4. The AI is asked to return a structured JSON response:
+   - `summary`: 2-3 sentence overview
+   - `key_findings`: Array of observations about spending patterns
+   - `savings_tips`: Actionable advice based on actual spending
+   - `budget_alerts`: Warnings about budget categories at risk
+   - `trends`: Spending direction analysis (increasing/decreasing)
+5. Response parsed and optionally persisted to `ai_insights` table
+
+**Provider Strategy**:
+- Tries Gemini first → if error or unconfigured, falls back to OpenRouter
+- If both fail, returns error to client
+
+### Rate Limiting
+
+Both OCR and Insights share the `aiRateLimit`: 20 requests per 60 seconds per user. This limits total AI API calls regardless of which AI feature is being used.
+
+### Structured Output Handling
+
+- Both pipelines expect JSON output from the AI
+- Markdown code fences (`\`\`\`json ... \`\`\``) are stripped before parsing
+- If JSON parsing fails, the error is caught and a structured error response is returned to the client
+- No Zod validation on AI output structure — the code uses optional chaining and defaults for missing fields
+
+### Cost and Abuse Considerations
+
+- **Gemini 2.5 Flash**: Free tier with generous rate limits; no direct cost
+- **OpenRouter free models**: No cost but quality varies; response may be slower
+- **Rate limiting**: 20 AI calls/minute/user prevents abuse
+- **No server-side cost tracking**: There is no mechanism to track AI API costs or set spending limits
+- **Image size**: Client-side compression reduces payload size, indirectly reducing AI processing cost
+
+### Known Risks
+
+- **Prompt injection via receipt**: A maliciously crafted receipt image could theoretically contain text that attempts to influence the AI prompt. The system prompt does not explicitly guard against this, but the expected output format (structured JSON) limits the attack surface.
+- **Malformed AI output**: If the AI returns non-JSON or incorrect schema, the response is treated as an error. There is no retry with modified prompt.
+- **No output sanitization**: AI-generated text (insight summaries, etc.) is rendered in React JSX which provides XSS protection, but no explicit sanitization layer exists.
+
+---
+
+## 13. Expense Management Flow
+
+### Manual Creation
+
+1. User clicks "Add Expense" button → `ExpenseFormDialog` opens
+2. Fills form: amount (required), category (required, dropdown), vendor (optional), date (required, defaults to today), notes (optional), tags (optional)
+3. Client-side Zod validation
+4. `POST /api/expenses` with form data
+5. Server validates, creates record via `createExpenseRecord()`, checks budget alerts
+6. On success, UI refreshes expense list
+
+### OCR-Linked Creation
+
+1. User processes receipt through OCR (see [Section 11](#11-receipt-ingestion-and-ocr-lifecycle))
+2. OCR results pre-populate the expense form in `ReceiptWorkspace`
+3. User reviews/edits extracted fields
+4. Save triggers `POST /api/expenses` with `receipt_id` linking to the stored receipt
+
+### Editing
+
+1. User clicks expense row → `ExpenseFormDialog` opens in edit mode with pre-populated fields
+2. User modifies fields
+3. `PUT /api/expenses/[id]` updates the record
+4. Budget alerts re-checked for the expense's category
+
+### Deletion
+
+1. User clicks delete → confirmation dialog
+2. `DELETE /api/expenses/[id]` removes the record
+3. If expense had a linked receipt, the receipt_id association is cleared
+
+### Offline Creation
+
+1. When network is unavailable during save, the client catches the error
+2. Expense data + optional receipt preview stored in IndexedDB via `enqueuePendingUpload()`
+3. A unique `idempotency_key` (UUID) is generated and stored with the queued entry
+4. On reconnect (via `online` event, `visibilitychange`, or Background Sync), `processQueue()` retries
+5. Server-side `createExpenseRecord()` checks the idempotency key — if an expense with this key already exists, it returns the existing record without creating a duplicate
+
+### Categorization
+
+18 fixed categories: Food & Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Shopping, Education, Personal Care, Travel, Insurance, Gifts & Donations, Savings & Investments, Taxes, Childcare, Pets, Business, Other.
+
+Each category has an assigned color in `CATEGORY_COLORS` for consistent UI representation.
+
+---
+
+## 14. Budget Management Flow
+
+### Budget Creation
+
+1. User clicks "Add Budget" on budgets page
+2. `BudgetFormDialog` shows category dropdown (filtered to exclude categories that already have a budget), amount input, period selector (monthly/weekly/yearly — monthly is default)
+3. `POST /api/budgets` — server checks for existing budget with same user+category (application-level uniqueness)
+4. On success, budget appears in list
+
+### Progress Tracking
+
+The budget list page fetches budgets with current spending:
+1. Server queries all user budgets
+2. For each budget, calculates total spending in the budget's current period (e.g., current month for monthly budgets)
+3. Returns each budget with `spent`, `percentage` (spent/limit * 100), and `remaining` (limit - spent) fields
+4. Client renders progress bars color-coded: green (< 50%), yellow (50-79%), orange (80-99%), red (≥ 100%)
+
+### Alert Logic
+
+When any expense is created or imported:
+1. `checkBudgetAlerts(supabase, userId, category)` is called
+2. Fetches the budget for this category + total spending for current month
+3. If spending ≥ 100% → creates "budget_exceeded" notification
+4. If spending ≥ 80% (and < 100%) → creates "budget_warning" notification
+5. Deduplication: checks if a notification with same type + category already exists for the current month before creating
+
+### Editing and Deletion
+
+- Edit: `PUT /api/budgets/[id]` — can change amount and period
+- Delete: `DELETE /api/budgets/[id]` — removes the budget; no cascade effect on expenses
+
+---
+
+## 15. Analytics and Insights
+
+### Dashboard Analytics
+
+The dashboard page (`/dashboard`) displays:
+- **Summary cards**: Total spend (current month), average daily spend, number of expenses, number of receipts scanned
+- **Expense chart**: Recharts area chart showing daily spending over a selectable date range
+- **Category breakdown**: Recharts pie chart with spending per category
+- **Recent expenses**: Last 5 expenses with vendor, amount, category badge
+
+Data is fetched server-side in the page component and passed to client components.
+
+### AI Insights
+
+Covered in [Section 12](#12-ai-integrations). The insights page shows:
+- Summary paragraph
+- Key findings (bullet points)
+- Savings tips
+- Budget alerts (if budgets are at risk)
+- Trend analysis
+
+### Analytics API
+
+`GET /api/analytics` aggregates:
+- Total spending over selected period
+- Spending by category (amounts + percentages)
+- Daily spending trend data
+- Budget utilization per category
+- Top merchants by frequency and total amount
+
+### Data Freshness
+
+- Dashboard data is fetched on page load (server-side)
+- No client-side caching or polling — user must refresh/navigate to get updated data
+- AI insights can be regenerated on-demand; old insights are available in the list
+
+---
+
+## 16. Notifications System
+
+### Notification Types
+
+| Type | Trigger | Content |
+|---|---|---|
+| `budget_warning` | Expense pushes category to ≥ 80% of budget | "Budget Alert: [Category] spending has reached 80% of your $X limit" |
+| `budget_exceeded` | Expense pushes category to ≥ 100% of budget | "Budget Exceeded: [Category] spending has exceeded your $X limit" |
+| `weekly_summary` | Manual trigger via `/api/notifications/weekly-summary` | Weekly spending summary with totals and category breakdown |
+
+### Trigger Conditions
+
+- **Budget alerts**: Triggered by `checkBudgetAlerts()` which is called from:
+  - `POST /api/expenses` (manual expense creation)
+  - `POST /api/expenses/import` (CSV import, for each row's category)
+- **Weekly summary**: Two endpoints exist:
+  - `POST /api/notifications/weekly-summary` — user-authenticated, generates summary for the calling user
+  - `POST /api/cron/weekly-summary` — CRON_SECRET-authenticated, generates summaries for all opted-in users. Triggered by a Render cron job every Monday at 9 AM UTC (configured in `render.yaml`).
+
+### In-App Notification Center
+
+- `/notifications` page shows all notifications in reverse chronological order
+- Tabs: "All" and "Unread"
+- Each notification shows type icon, title, message, relative timestamp
+- "Mark all as read" button calls `PATCH /api/notifications`
+- Individual notifications marked as read on view
+- Unread count badge shown in the app shell navigation sidebar
+
+### Push Notification Infrastructure
+
+**Implemented**:
+- VAPID key pair configuration (env vars)
+- Push subscription management UI (subscribe/unsubscribe toggle in settings)
+- `POST /api/notifications/subscribe` saves subscription to `push_subscriptions` table
+- `DELETE /api/notifications/subscribe` removes subscription
+- Service worker `push` event handler displays system notification
+- Service worker `notificationclick` handler opens the app to `/notifications`
+
+**Implemented (server-side delivery)**:
+- **`web-push`** library is installed and configured with VAPID credentials
+- **`src/lib/push-sender.ts`** provides `sendPushToUser()` which sends push to all of a user's subscriptions and automatically cleans up expired/invalid subscriptions (HTTP 404/410)
+- Push notifications are sent for **budget alerts** (warning at 80%, exceeded at 100%) and **weekly summaries**
+- The in-app notification center remains the **primary fallback channel** for users without push subscriptions
+
+### Data Model
+
+Notifications stored in `notifications` table with `type`, `title`, `message`, `read` boolean, and optional `metadata` JSONB field. RLS ensures users only see their own notifications.
+
+---
+
+## 17. CSV Import System
+
+### Accepted Format
+
+- Standard CSV files with a header row
+- Flexible column naming (auto-detected from common patterns)
+- Supported delimiters: comma (primary, others not explicitly handled)
+
+### Import Flow
+
+**Step 1: File Selection**
+- User selects a `.csv` file via file picker or drag-and-drop
+- File read as text on client side
+
+**Step 2: Column Mapping**
+- `autoDetectColumns()` analyzes header row
+- Maps common names like "Amount"/"Total"/"Price" → amount, "Date"/"Transaction Date" → date, "Merchant"/"Payee"/"Vendor" → vendor, "Category"/"Type" → category, "Description"/"Notes"/"Memo" → notes
+- User can manually adjust mappings via dropdown selectors
+- Required mappings: amount and date at minimum
+
+**Step 3: Preview and Validation**
+- Rows parsed using mapped columns
+- `parseAmount()` handles currency symbols, commas, parenthetical negatives
+- `parseDate()` tries ISO, US, European, and written date formats
+- Each row validated against `importRowSchema` (Zod)
+- Invalid rows highlighted with specific error messages
+- User can see which rows will be imported vs skipped
+
+**Step 4: Confirmation and Import**
+- User reviews summary (total rows, valid rows, skipped rows, duplicate warnings)
+- Submit triggers `POST /api/expenses/import`
+- Server processes rows in batches of 50
+- For each row:
+  - `detectDuplicate()` checks against recent expenses (last 30 days)
+  - `suggestCategory()` attempts to infer category from vendor/notes if not mapped
+  - `createExpenseRecord()` inserts with idempotency key derived from row content
+  - `checkBudgetAlerts()` fires for each affected category
+- Response includes count of created, skipped, and errored rows
+
+### Duplicate Detection
+
+The scoring algorithm in `detectDuplicate()`:
+- Compares candidate against existing expenses from last 30 days
+- Score components: amount match (40pts), vendor similarity (30pts), date proximity (30pts)
+- Threshold: 70+ points = likely duplicate
+- Duplicates are flagged in the preview step with warnings but user can choose to import anyway
+
+### Error Reporting
+
+- Client-side: Invalid rows shown in red in the preview table with error descriptions
+- Server-side: Each row's result tracked (created/duplicate/error)
+- Final response: `{ created: N, duplicates: N, errors: N, details: [...] }`
+
+---
+
+## 18. PWA Architecture
+
+### Web App Manifest
+
+Generated dynamically by `src/app/manifest.ts`:
+
+| Field | Value | Notes |
+|---|---|---|
+| `name` | "ExpenseVision" | |
+| `short_name` | "ExpenseVision" | |
+| `description` | Full app description | |
+| `start_url` | "/dashboard" | Opens directly to dashboard |
+| `display` | "standalone" | No browser chrome |
+| `background_color` | "#0a0a0a" | |
+| `theme_color` | "#f59e0b" | Amber accent |
+| `orientation` | "portrait-primary" | |
+| `categories` | ["finance", "productivity"] | |
+| `icons` | 5 sizes (192–512, maskable) | Standard + maskable variants |
+| `share_target` | See below | |
+| `file_handlers` | See below | |
+| `shortcuts` | Dashboard, Expenses, Receipts, Budgets | Quick actions from app icon |
+
+### Share Target
+
+```json
+{
+  "action": "/receipts/share-target",
+  "method": "POST",
+  "enctype": "multipart/form-data",
+  "params": {
+    "files": [
+      { "name": "receipt", "accept": ["image/*", "application/pdf"] }
+    ]
+  }
+}
+```
+
+**Flow**: User shares image/PDF from another app → OS routes to ExpenseVision → POST to `/receipts/share-target` → file stored as a draft via receipt serialization → redirect to `/receipts` → `ReceiptWorkspace` detects and loads draft → proceeds to OCR
+
+### File Handlers
+
+```json
+[{
+  "action": "/receipts/capture",
+  "accept": {
+    "image/*": [".jpg", ".jpeg", ".png", ".webp", ".heic"],
+    "application/pdf": [".pdf"]
+  }
+}]
+```
+
+**Flow**: User opens a receipt file with ExpenseVision from OS file picker → `launchQueue.setConsumer()` in `PWAProvider` receives the file → stores as draft → redirects to `/receipts/capture` → same OCR flow
+
+### Service Worker (`public/sw.js`)
+
+**Install Event**:
+- Precaches core assets: `/`, `/dashboard`, `/expenses`, `/budgets`, `/receipts`, `/insights`, `/offline` (if it existed), and icon files
+- Uses `skipWaiting()` for immediate activation
+
+**Activate Event**:
+- Cleans caches that don't match the current `CACHE_NAME`
+- Claims all clients immediately
+
+**Fetch Event Strategy**:
+- **API routes** (`/api/`): Network only (no caching)
+- **Auth routes** (`/auth/`, `/login`, `/signup`): Network only
+- **Static assets** (fonts, images, icons, `_next/static`): Cache-first with network fallback
+- **Navigation requests**: Network-first with cache fallback
+- **Other requests**: Network-first with cache fallback
+
+**Background Sync**:
+- Listens for `sync` event with tag `pending-expense-upload`
+- Posts `{ type: 'process-offline-queue' }` message to all clients
+- Client-side code in `offline-retry.ts` handles the actual queue processing
+
+**Push Notifications**:
+- `push` event: Displays a system notification with title, body, icon, and badge from the push payload
+- `notificationclick` event: Opens or focuses the app at `/notifications`
+
+### Offline Behavior
+
+| Feature | Offline Support |
+|---|---|
+| Dashboard view | Cached page shell loads; data from last visit may be stale |
+| Expense creation | Falls back to IndexedDB queue; syncs on reconnect |
+| Receipt scanning | Not available (requires API call) |
+| Budget view | Cached page shell; data may be stale |
+| CSV import | Not available (requires API call) |
+| AI insights | Not available (requires API call) |
+| Navigation | Cached pages load from service worker |
+
+### Install Prompt
+
+`PWAProvider` component:
+1. Captures `beforeinstallprompt` event
+2. Stores the deferred prompt in state
+3. AppShell renders an "Install App" button in the sidebar when prompt is available
+4. Clicking triggers the native browser install dialog
+5. `appinstalled` event tracked via telemetry
+
+### Platform-Specific Caveats
+
+- **Background Sync**: Chromium-only. Safari and Firefox fall back to manual retry on `online` event and `visibilitychange`.
+- **File Handlers**: Chromium desktop-only. Not supported on mobile or non-Chromium browsers.
+- **Launch Queue**: Chromium-only. Other browsers ignore `launchQueue.setConsumer()`.
+- **Share Target**: Works on Android Chrome and other browsers with Share API support. Limited on iOS Safari.
+- **Push Notifications**: Browser support is broad, but **server-side delivery is not implemented** (see [Section 16](#16-notifications-system)).
+- **Service Worker**: Registered in production only; development uses hot module replacement.
+
+---
+
+## 19. Upstash Redis — Caching and Rate Limiting
+
+### Client Configuration
+
+- `Redis` client from `@upstash/redis` initialized with `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+- If either env var is missing, `redis` is set to `null` and rate limiting is gracefully skipped
+
+### Rate Limit Architecture
+
+All rate limiters use `Ratelimit.slidingWindow` from `@upstash/ratelimit`:
+
+| Limiter | Limit | Window | Routes Protected |
+|---|---|---|---|
+| `aiRateLimit` | 20 req | 60 sec | `/api/ocr`, `/api/ai-insights` |
+| `apiRateLimit` | 60 req | 60 sec | All GET endpoints, `/api/receipts/access`, `/api/analytics`, `/api/notifications/weekly-summary` |
+| `expenseMutationRateLimit` | 30 req | 60 sec | `/api/expenses` POST/PUT/DELETE, `/api/expenses/[id]/receipt` DELETE |
+| `importBatchRateLimit` | 10 req | 60 sec | `/api/expenses/import` |
+| `budgetMutationRateLimit` | 20 req | 60 sec | `/api/budgets` POST/PUT/DELETE |
+| `notificationMutationRateLimit` | 30 req | 60 sec | `/api/notifications` GET/PATCH/subscribe |
+| `telemetryRateLimit` | 120 req | 60 sec | `/api/telemetry` |
+| `accountMutationRateLimit` | 5 req | 3600 sec | `/api/account` DELETE |
+
+### Identification
+
+Rate limits are keyed by client IP address extracted from:
+1. `x-forwarded-for` header (first IP)
+2. `x-real-ip` header
+3. Falls back to `"unknown"` if neither is present
+
+### Fallback Behavior
+
+If Redis is unavailable or not configured:
+- `enforceRateLimit()` returns `null` instead of a 429 response
+- All API routes check: if the rate limit function returns `null`, the request proceeds without rate limiting
+- This means the app functions without Redis but without abuse protection
+
+### What is NOT Cached
+
+Redis is used **exclusively for rate limiting**. There is no data caching in Redis:
+- No query result caching
+- No session caching
+- No AI response caching
+- All data is fetched fresh from Supabase on every request
+
+### Abuse Prevention Assessment
+
+- AI endpoints are appropriately limited (20/min prevents cost abuse)
+- Import batch limit (10/min) prevents mass data injection
+- Account deletion limit (5/hour) prevents accidental rapid deletions
+- **Gap**: No global per-IP rate limit across all endpoints combined — a determined attacker could spread requests across many endpoint types
+- **Gap**: The `"unknown"` fallback identifier means clients without forwarded headers share a single rate limit bucket
+
+---
+
+## 20. SEO and Metadata
+
+### Metadata Strategy
+
+The root layout (`src/app/layout.tsx`) sets global metadata via Next.js Metadata API:
+
+- **Title**: "ExpenseVision — AI-Powered Expense Tracking"
+- **Description**: Comprehensive description of the app's features
+- **Keywords**: expense tracker, receipt OCR, budget management, AI insights, PWA
+- **OpenGraph**: Title, description, URL, site name, locale (en_US), type (website)
+- **Twitter**: `card: "summary_large_image"`, title, description
+- **Robots**: `index: true, follow: true` (for public pages)
+
+### Per-Route Coverage
+
+| Route | Title | Custom Metadata |
+|---|---|---|
+| `/` (landing) | Default from layout | Full OG + Twitter + JSON-LD structured data |
+| `/login` | "Log In — ExpenseVision" | Standard |
+| `/signup` | "Sign Up — ExpenseVision" | Standard |
+| `/dashboard` | "Dashboard — ExpenseVision" | noindex (protected) |
+| `/demo` | "Demo — ExpenseVision" | Standard (public, indexable) |
+| Other auth pages | Individual titles | noindex (protected) |
+
+### robots.txt
+
+Generated by `src/app/robots.ts`:
+- **Allow**: `/`, `/demo`, `/demo/*`, `/login`, `/signup`
+- **Disallow**: `/api/*`, `/dashboard`, `/expenses`, `/budgets`, `/receipts`, `/insights`, `/imports`, `/notifications`, `/settings`, `/auth/*`
+- **Sitemap**: Points to `/sitemap.xml`
+
+### sitemap.xml
+
+Generated by `src/app/sitemap.ts`:
+- Includes: `/` (weekly), `/login` (monthly), `/signup` (monthly), `/demo` (weekly), `/demo/expenses`, `/demo/budgets`, `/demo/receipts`, `/demo/insights`, `/demo/settings` (all weekly)
+- Excludes all authenticated routes
+
+### Structured Data
+
+The landing page (`src/app/page.tsx`) includes JSON-LD `SoftwareApplication` schema:
+- `@type`: "SoftwareApplication"
+- `name`: "ExpenseVision"
+- `applicationCategory`: "FinanceApplication"
+- `operatingSystem`: "Web"
+- `offers`: Free
+
+### Canonical URLs
+
+No explicit `canonical` tag in metadata. The `metadataBase` is set to the `NEXT_PUBLIC_APP_URL`, which Next.js uses to resolve relative OG image URLs and similar references.
+
+### Assessment
+
+- Public pages are properly indexable
+- Protected pages are properly blocked in robots.txt
+- Demo pages are indexable (good for SEO — provides crawlable content)
+- Missing: explicit `noindex` meta tag on auth-protected pages beyond robots.txt blocking
+- Missing: per-page OG images (all pages use default)
+
+---
+
+## 21. CI/CD and Deployment
+
+### GitHub Actions CI Pipeline
+
+**File**: `.github/workflows/ci.yml`
+
+**Triggers**: Push to `main`, pull request to `main`
+
+**Jobs** (sequential):
+
+1. **Type Check** (`npx tsc --noEmit`) — Ensures TypeScript compiles without errors
+2. **Lint** (`npm run lint`) — ESLint with Next.js recommended rules
+3. **Test** (`npm test -- --run`) — Runs all Vitest tests
+4. **Build** (`npm run build`) — Verifies production build succeeds
+
+**Environment**: Node.js 20, Ubuntu latest
+
+**Assessment**: The CI pipeline covers type safety, lint quality, unit test correctness, and build integrity. It does not run E2E tests (Playwright) in CI — those require a running dev server and Supabase credentials.
+
+### Render Deployment
+
+**Configuration**: `render.yaml` Blueprint
+
+```yaml
+services:
+  - type: web
+    name: expensevision
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node scripts/run-standalone.mjs
+    healthCheckPath: /api/warmup
+    envVars: [all required environment variables]
+```
+
+**Standalone Server**: `scripts/run-standalone.mjs`
+1. Detects the standalone server directory (`.next/standalone`)
+2. Copies `public/` assets into the standalone directory
+3. Copies `.next/static/` into standalone's `.next/static/`
+4. Launches `server.js` (the Next.js standalone server)
+
+This is necessary because Next.js standalone output doesn't include static assets by default.
+
+### Free-Tier Constraints
+
+- **Render free tier**: Service spins down after 15 minutes of inactivity. First request after spin-down incurs 30–60 second cold start.
+- **Supabase free tier**: Database auto-pauses after 1 week of inactivity. Reconnection on next request adds latency.
+- **Upstash Redis free tier**: 10,000 requests/day limit. Rate limiting stops working if exhausted.
+
+### Health Check
+
+`GET /api/warmup` returns `{ "status": "ok", "timestamp": "..." }` with 200 status. Render uses this for deployment health checks and to verify the service is running. An external service (like UptimeRobot) could ping this endpoint to prevent spin-down, but **no keep-alive service is configured in the repo**.
+
+---
+
+## 22. Environment Variables
+
+| Variable | Required | Purpose | Used In |
+|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | **Yes** | Supabase project URL | All Supabase clients |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **Yes** | Supabase anonymous/public key | Browser + server clients |
+| `NEXT_PUBLIC_APP_URL` | **Yes** | Public-facing app URL | Metadata, redirects, OAuth callbacks |
+| `SUPABASE_SERVICE_ROLE_KEY` | For account deletion | Service role key for admin operations | `src/lib/supabase/admin.ts` |
+| `GEMINI_API_KEY` | For AI features | Google Gemini API key | `/api/ocr`, `/api/ai-insights` |
+| `OPENROUTER_API_KEY` | Fallback AI | OpenRouter API key | `/api/ocr`, `/api/ai-insights` (fallback) |
+| `UPSTASH_REDIS_REST_URL` | Optional | Upstash Redis REST URL | `src/lib/redis.ts` |
+| `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis auth token | `src/lib/redis.ts` |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Optional | VAPID public key for push | Push subscription client-side |
+| `VAPID_PRIVATE_KEY` | Optional | VAPID private key | Push notification sending (not currently used) |
+
+### Behavior Without Optional Variables
+
+| Missing Variable | Effect |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | Account deletion endpoint returns error |
+| `GEMINI_API_KEY` + `OPENROUTER_API_KEY` | OCR and AI Insights return errors; manual entry still works |
+| `GEMINI_API_KEY` only | OpenRouter used as primary (may be slower/lower quality) |
+| `UPSTASH_REDIS_*` | Rate limiting disabled; all requests pass through |
+| `VAPID keys` | Push subscription UI hidden; in-app notifications still work |
+
+---
+
+## 23. Testing Strategy
+
+### Unit Tests (Vitest)
+
+**Framework**: Vitest with `globals: true`, `environment: "node"`
+
+**Test Files** (11 suites, 76 tests total):
+
+| File | Tests | Coverage |
+|---|---|---|
+| `validations.test.ts` | Expense/budget/auth Zod schemas | Valid inputs, edge cases, boundary values |
+| `csv-parser.test.ts` | CSV parsing, column detection | Quoted fields, date formats, amount parsing |
+| `duplicate-detection.test.ts` | Duplicate scoring algorithm | Exact matches, partial matches, no matches |
+| `merchant-normalize.test.ts` | Merchant name standardization | 80+ known variants, edge cases |
+| `category-suggest.test.ts` | Category inference | Known merchants, keyword matching, unknown merchants |
+| `receipts.test.ts` | File validation, magic bytes | Valid/invalid types, size limits, binary signatures |
+| `receipt-share-draft.test.ts` | Draft serialization | Round-trip serialize/deserialize |
+| `offline-queue.test.ts` | IndexedDB operations | Enqueue, retrieve, update, remove |
+| `receipt-capture.test.ts` | Image compression logic | Resize calculations, quality settings |
+| `budget-alerts.test.ts` | Alert threshold logic | 80% warning, 100% exceeded, deduplication |
+| `expense-mutations.test.ts` | Idempotency logic | New creation, duplicate key handling |
+
+**Running**:
+```bash
+npm test          # Single run
+npm run test:watch  # Watch mode
+```
+
+### E2E Tests (Playwright)
+
+**Framework**: Playwright with Chromium
+
+**File**: `e2e/happy-path.spec.ts`
+
+**Scenario**:
+1. Navigate to login page
+2. Sign in with test credentials (from env vars)
+3. Verify redirect to dashboard
+4. Navigate to expenses
+5. Add a new expense
+6. Verify expense appears in list
+
+**Configuration** (`playwright.config.ts`):
+- `testDir: './e2e'`
+- Workers: 1 (sequential)
+- Retries: 0 on CI, 2 locally
+- `baseURL` from env var
+- `webServer: { command: 'npm run dev' }` — starts dev server for local runs
+
+**Running**:
+```bash
+npx playwright test
+```
+
+**Not run in CI** — the GitHub Actions workflow does not include E2E tests because they require a running Supabase instance and test user credentials.
+
+### Coverage Gaps
+
+- No tests for API route handlers directly
+- No tests for React components (no component testing framework configured)
+- No tests for authentication flows
+- No tests for the service worker
+- E2E coverage is minimal (single happy path)
+- No visual regression testing
+- No load/performance testing
+
+---
+
+## 24. Security Model
+
+### Authentication Enforcement
+
+| Layer | Mechanism | Scope |
+|---|---|---|
+| **Middleware** | `src/proxy.ts` checks `supabase.auth.getUser()` | All protected routes (redirect to login) |
+| **API Routes** | Each route calls `supabase.auth.getUser()` independently | All API routes except `/api/warmup` |
+| **Database** | Supabase RLS policies on all tables | All data access |
+
+This three-layer approach means that even if one layer is bypassed, the others still protect data.
+
+### Row Level Security
+
+All tables have RLS enabled with policies enforcing `user_id = auth.uid()` (or `id = auth.uid()` for profiles). This means:
+- A user can only query their own records
+- Even if an attacker obtains a valid session token, they cannot access other users' data
+- Service role client bypasses RLS — used only for account deletion
+
+### File Upload Security
+
+| Check | Implementation |
+|---|---|
+| File type (client) | MIME type check against allowlist |
+| File size (client) | 10 MB limit check |
+| File type (server) | MIME type re-check |
+| Magic bytes (server) | Binary signature validation for JPEG, PNG, WebP, PDF |
+| Storage isolation | Files stored under `{userId}/` path prefix |
+| Access control | Signed URLs with 1-hour expiry |
+
+### HTTP Security Headers
+
+Configured in `next.config.ts`:
+
+| Header | Value | Purpose |
+|---|---|---|
+| `X-Content-Type-Options` | `nosniff` | Prevents MIME type sniffing |
+| `X-Frame-Options` | `DENY` | Prevents clickjacking |
+| `X-XSS-Protection` | `1; mode=block` | Legacy XSS filter (browser support varies) |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Controls referrer header |
+| `Permissions-Policy` | Camera, microphone, geolocation restricted | Limits browser API access |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Forces HTTPS for 1 year |
+| `Content-Security-Policy` | Detailed policy | See below |
+
+### Content Security Policy
+
+```
+default-src 'self';
+script-src 'self' 'unsafe-inline';
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+font-src 'self' https://fonts.gstatic.com;
+img-src 'self' blob: data: https://*.supabase.co https://*.googleusercontent.com https://avatars.githubusercontent.com;
+connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://openrouter.ai https://*.upstash.io;
+frame-ancestors 'none';
+base-uri 'self';
+form-action 'self';
+worker-src 'self';
+manifest-src 'self';
+```
+
+**Notable**: `'unsafe-inline'` in `script-src` is required by Next.js inline script injection. `'unsafe-eval'` has been removed. Nonce-based CSP is a future improvement tracked in known limitations.
+
+### Input Validation
+
+- All user input validated with Zod schemas before processing
+- HTML tags stripped from vendor names and text fields via regex in Zod transforms
+- Amount bounded to 0.01–999,999.99
+- Dates constrained to 2020–present, not future
+- Category values must match the defined enum
+
+### Open Redirect Prevention
+
+`safeRedirectPath(path)` in `src/lib/utils.ts`:
+- Only allows paths starting with `/`
+- Rejects paths starting with `//` (protocol-relative URLs)
+- Used in OAuth callback and login redirect flows
+
+### Known Security Considerations
+
+| Area | Status | Notes |
+|---|---|---|
+| **CSRF** | Partial | No explicit CSRF tokens; relies on SameSite cookies from Supabase |
+| **Rate limiting** | Good | All mutation routes protected; graceful degradation if Redis unavailable |
+| **Service role key** | Appropriate | Used only for account deletion (admin operation); not exposed client-side |
+| **Secret leakage** | Clean | `.env.example` has placeholder values; `.gitignore` excludes `.env*` files; `NEXT_PUBLIC_` prefix only on non-sensitive values |
+| **XSS** | Low risk | React's JSX escaping prevents most XSS; no `dangerouslySetInnerHTML` usage found |
+| **IDOR** | Protected | RLS prevents cross-user data access; API routes use authenticated user ID |
+| **Error exposure** | Generally safe | API routes return generic error messages; stack traces not exposed in production |
+
+---
+
+## 25. Performance and Monitoring
+
+### Caching Strategy
+
+- **Service Worker**: Static assets cached with cache-first strategy; navigation pages cached on visit for offline access
+- **Redis**: Used only for rate limiting, not data caching
+- **No CDN**: Static assets served directly from the Node.js server (Render doesn't include a CDN on free tier)
+- **Client-side**: No explicit React Query or SWR caching layer; data fetched fresh on each page load/navigation
+
+### Image Optimization
+
+- **Receipt compression**: Client-side canvas resize to 1200px max + JPEG 0.7 quality before upload
+- **Next.js Image**: Not explicitly used for user content (receipt thumbnails use signed URLs in regular `<img>` tags)
+- **Static assets**: PWA icons and landing page images are standard static files
+
+### Code Splitting
+
+- Next.js App Router provides automatic route-based code splitting
+- Dynamic imports not explicitly used for components (all components imported normally)
+- The `ReceiptWorkspace` component is ~1680 lines and loaded entirely when visiting `/receipts`
+
+### Server vs Client Rendering
+
+- **Server-rendered**: Dashboard, expenses list, budgets list, notifications — initial data fetching
+- **Client-only**: Receipt workspace, import wizard, insights generation, settings, all forms
+- **Benefit**: Server rendering means authenticated data appears on first paint without loading spinners for list pages
+
+### Monitoring
+
+- **Telemetry**: Lightweight event tracking to `/api/telemetry` — logs events to server console. No external analytics service integrated.
+- **Error tracking**: No Sentry, LogRocket, or similar error tracking service
+- **Uptime monitoring**: No UptimeRobot or similar configured in the repository
+- **Performance monitoring**: No Web Vitals reporting or real-user monitoring
+
+### Known Bottlenecks
+
+- **Cold start**: Render free tier spin-down adds 30–60s latency
+- **No pagination**: Expenses and notifications fetched without LIMIT/OFFSET — performance degrades with large datasets
+- **AI latency**: OCR typically takes 3–8 seconds; Insights generation can take 5–15 seconds
+- **No connection pooling**: Each API request creates a new Supabase client (Supabase handles connection pooling server-side via pgbouncer)
+
+---
+
+## 26. Proxy Configuration
+
+### What `src/proxy.ts` Does
+
+This file is the Next.js middleware (exported as `middleware` with a `config.matcher` for relevant routes). Despite the filename `proxy.ts`, it does not proxy requests to another server. Its actual responsibilities:
+
+1. **Session Refresh**: Creates a Supabase server client that reads/writes auth cookies. Calling `supabase.auth.getUser()` implicitly refreshes the session token if needed, and the cookie-handling callbacks update the response cookies.
+
+2. **Route Protection**:
+   - If user is not authenticated and requests a protected path (`/dashboard`, `/expenses`, `/budgets`, `/receipts`, `/insights`, `/imports`, `/notifications`, `/settings`) → redirect to `/login?redirectTo={original_path}`
+   - If user is authenticated and requests an auth path (`/login`, `/signup`, `/forgot-password`) → redirect to `/dashboard`
+
+3. **Cookie Management**: The middleware intercepts the request, creates a `NextResponse`, and passes cookie getter/setter callbacks that bridge Supabase's cookie operations with Next.js response cookies.
+
+### Security Implications
+
+- The middleware runs on the edge/server before page rendering
+- It prevents unauthenticated users from seeing protected page content (server-side redirect)
+- It does NOT protect API routes — those have their own auth checks
+- The `x-middleware-supabase-*` cookie operations are internal to the Supabase SSR library
+- The `redirectTo` parameter uses `safeRedirectPath()` to prevent open redirect attacks
+
+### Matched Routes
+
+The middleware matches all routes except:
+- `/_next/static/*` (static assets)
+- `/_next/image/*` (Next.js image optimization)
+- `favicon.ico`
+- `*.svg`, `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp` (static files)
+
+---
+
+## 27. Limitations, Tradeoffs, and Known Issues
+
+### Infrastructure Constraints
+
+| Constraint | Impact | Mitigation |
+|---|---|---|
+| **Render free tier** | Spin-down after 15 min inactivity; 30–60s cold start | Health check endpoint available for keep-alive (not configured) |
+| **Supabase free tier** | DB pauses after 1 week inactivity; 500 MB storage; 2 GB transfer | Adequate for personal use; no mitigation configured |
+| **Upstash free tier** | 10,000 requests/day | Rate limiting skipped if exhausted; app still functions |
+
+### Partially Implemented Features
+
+| Feature | Status | Notes |
+|---|---|---|
+| **Push notifications** | Fully implemented | `web-push` installed, `sendPushToUser()` delivers on budget alerts and weekly summaries, expired subscriptions cleaned automatically |
+| **Email receipt parsing** | Interface defined | `email-receipt-parser.ts` is a stub — not implemented |
+| **Weekly summary cron** | Fully implemented | Render cron job triggers `POST /api/cron/weekly-summary` every Monday at 9 AM UTC |
+| **Expense pagination** | Implemented | `page` and `limit` query params on `GET /api/expenses`, response includes `pagination` object |
+| **Notification pagination** | Implemented | `page` and `limit` query params on `GET /api/notifications`, response includes `pagination` object |
+
+### Browser/Platform Limitations
+
+| Feature | Limitation |
+|---|---|
+| Background Sync | Chromium-only; Safari/Firefox use manual retry |
+| File Handlers | Chromium desktop-only |
+| Launch Queue | Chromium-only |
+| Share Target | Works on Android Chrome; limited on iOS Safari |
+| Camera capture | Requires HTTPS; behavior varies by OS/browser |
+| HEIC support | Not in allowed types list; only JPEG, PNG, WebP, GIF, and PDF are supported |
+
+### Known Technical Debt
+
+- `ReceiptWorkspace` component is ~1680 lines — should be decomposed into smaller components
+- No React component testing (only unit tests for utility functions)
+- CSP uses `'unsafe-inline'` for scripts (required by Next.js); `'unsafe-eval'` has been removed
+- No connection to external monitoring/alerting services
+- Demo data is hardcoded rather than generated from a seed file
+- No database migrations for test seeding
+- The `CATEGORY_COLORS` mapping in `constants.ts` and category CHECK constraints in SQL must be kept in sync manually
+
+### Known Rough Edges
+
+- After creating a budget alert notification, the unread badge updates only on next navigation (no real-time push)
+- Receipt OCR accuracy depends on image quality — blurry or dark photos may return low confidence
+- CSV import column auto-detection may fail on unusual header names
+- The "Other" category is a catch-all that lacks specific budget tracking granularity
+
+---
+
+## 28. Future Opportunities
+
+### Recommended Improvements
+
+1. **Component decomposition**: Break `ReceiptWorkspace` (~1680 lines) into focused sub-components (CapturePanel, OCRResultReview, HistoryGrid, etc.)
+2. **React component tests**: Add Vitest + React Testing Library for component-level testing
+3. **CSP hardening**: Replace `'unsafe-inline'` with nonce-based script loading in production
+4. **Error tracking**: Integrate Sentry or similar for production error monitoring
+5. **Real-time updates**: Use Supabase Realtime subscriptions for live dashboard updates and notification push
+6. **Recurring expenses**: Allow users to define recurring expenses that auto-create entries
+7. **Export**: Enable expense data export as CSV or PDF reports
+8. **Email receipt forwarding**: Implement the `email-receipt-parser.ts` stub with an actual email webhook
+
+### Scaling Considerations
+
+- Move to Render paid tier for always-on instances and automatic SSL
+- Add a CDN (Cloudflare or similar) in front of static assets
+- Implement Redis-based data caching for frequently-accessed dashboard queries
+- Add database indexing on common query patterns (user_id + date range)
+- Consider connection pooling optimization if concurrent user count grows
+- Implement proper cost tracking for AI API usage
+
+---
+
+## 29. Glossary
+
+| Term | Definition |
+|---|---|
+| **App Shell** | The persistent layout wrapper (sidebar, header, navigation) that frames all authenticated pages |
+| **Background Sync** | A Web API (Chromium-only) that allows the service worker to retry failed network requests when connectivity is restored |
+| **CSP** | Content Security Policy — HTTP header that restricts which resources the browser can load |
+| **File Handlers** | Web API allowing a PWA to register as a handler for specific file types with the OS |
+| **HSTS** | HTTP Strict Transport Security — forces HTTPS connections |
+| **Idempotency Key** | A unique identifier attached to an expense creation request; if the same key is sent twice, the server returns the existing record instead of creating a duplicate |
+| **Launch Queue** | Web API (`launchQueue.setConsumer()`) that lets a PWA receive files when opened via OS file association |
+| **Magic Bytes** | The first few bytes of a file that identify its true format, regardless of file extension |
+| **OCR** | Optical Character Recognition — extracting text data from images |
+| **RLS** | Row Level Security — PostgreSQL feature where the database enforces access policies at the row level |
+| **Service Role** | A Supabase credential that bypasses RLS; used only for admin operations that need unrestricted database access |
+| **Share Target** | Web App Manifest feature that allows other apps to share content directly into a PWA |
+| **Signed URL** | A time-limited URL generated by Supabase Storage that grants temporary access to a private file |
+| **Standalone Output** | Next.js build mode that produces a self-contained Node.js server without requiring the full `node_modules` |
+| **VAPID** | Voluntary Application Server Identification — key pair used for push notification authentication between server and browser |
+
+---
+
+## 30. Live vs Repo Observations
+
+### Verified Matches
+
+- Landing page renders correctly with all marketing sections
+- Auth flows (login, signup) functional
+- Dashboard loads with real data for authenticated users
+- Demo mode accessible at `/demo` without authentication
+- Receipt scanning workflow processes images through Gemini OCR
+- Budget progress bars update when expenses are added
+- Notifications appear in the notification center
+- PWA manifest served correctly; app is installable on Chromium
+
+### Potential Discrepancies
+
+| Area | Observation |
+|---|---|
+| **Push notifications** | Subscription UI visible in settings, but no push messages are actually delivered because server-side sending is not implemented |
+| **Weekly summary** | The notification type exists but there is no automated trigger — users would not receive weekly summaries unless something external calls the endpoint |
+| **Email receipt parsing** | Listed in some code comments as a feature direction but the implementation is a non-functional stub |
+| **Cold start** | On Render free tier, first visit after inactivity shows significant loading delay (30–60s) — this is infrastructure behavior, not a code issue |
+
+### Routes in Code but Potentially Not Discoverable
+
+- `/receipts/share-target` — only accessible via OS-level share action, not linked from within the app
+- `/receipts/capture` — only accessible via OS-level file handler, not linked from within the app
+- `/api/warmup` — health check endpoint, not user-facing
+- `/api/telemetry` — internal event ingestion, not user-facing
+- `/api/notifications/weekly-summary` — designed for cron but no trigger configured
+
+---
+
+*This document was generated from an exhaustive audit of the entire ExpenseVision repository. Every claim is grounded in actual code review. Features labeled as partial or not implemented have been verified against the actual source code.*

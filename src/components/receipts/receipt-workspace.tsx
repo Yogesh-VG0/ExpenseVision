@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -32,6 +31,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -309,6 +309,7 @@ export function ReceiptWorkspace({
   mode = "workspace",
   initialShareDraft = null,
 }: ReceiptWorkspaceProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { format: formatCurrency } = useCurrency();
   const isCaptureMode = mode === "capture";
@@ -324,6 +325,7 @@ export function ReceiptWorkspace({
   const [viewReceipt, setViewReceipt] = useState<ReceiptHistoryItem | null>(null);
   const [refreshingReceiptId, setRefreshingReceiptId] = useState<string | null>(null);
   const [removingReceiptId, setRemovingReceiptId] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [activeShareDraft, setActiveShareDraft] = useState<ReceiptShareDraft | null>(initialShareDraft);
   const [isStandaloneApp, setIsStandaloneApp] = useState(false);
   const [shareHintDismissed, setShareHintDismissed] = useState(true);
@@ -989,9 +991,9 @@ export function ReceiptWorkspace({
       {isCaptureMode ? (
         <div className="sticky top-0 z-30 -mx-4 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-            <Button variant="ghost" render={<Link href="/receipts" />}>
+            <Button variant="ghost" onClick={() => window.history.length > 1 ? router.back() : router.push("/receipts")}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to receipts
+              Back
             </Button>
             <Badge variant="secondary">{activeShareDraft ? "Shared receipt" : "Camera-first capture"}</Badge>
           </div>
@@ -1554,11 +1556,11 @@ export function ReceiptWorkspace({
                   />
                 ) : (
                   <div className="flex min-h-72 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-                    <FileText className="h-12 w-12 text-muted-foreground" />
+                    <FileText className="h-12 w-12 text-muted-foreground/50" />
                     <div>
                       <p className="font-medium">Receipt preview unavailable</p>
-                      <p className="text-sm text-muted-foreground">
-                        Refresh access or remove the broken reference if the file is gone.
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        The image link may have expired. Try reloading it, or remove the receipt if the file is gone.
                       </p>
                     </div>
                   </div>
@@ -1572,36 +1574,78 @@ export function ReceiptWorkspace({
 
               <Separator className="bg-muted/50" />
 
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void refreshReceiptAccess(viewReceipt.id)}
-                  disabled={refreshingReceiptId === viewReceipt.id}
-                >
-                  {refreshingReceiptId === viewReceipt.id ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                  )}
-                  Refresh access
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => void removeBrokenReceiptReference(viewReceipt.id)}
-                  disabled={removingReceiptId === viewReceipt.id}
-                >
-                  {removingReceiptId === viewReceipt.id ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <X className="mr-2 h-4 w-4" />
-                  )}
-                  Remove reference
-                </Button>
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Receipt actions
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void refreshReceiptAccess(viewReceipt.id)}
+                    disabled={refreshingReceiptId === viewReceipt.id}
+                  >
+                    {refreshingReceiptId === viewReceipt.id ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    Reload preview
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setConfirmRemoveId(viewReceipt.id)}
+                    disabled={removingReceiptId === viewReceipt.id}
+                  >
+                    {removingReceiptId === viewReceipt.id ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <X className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    Remove receipt
+                  </Button>
+                </div>
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm receipt removal */}
+      <Dialog open={!!confirmRemoveId} onOpenChange={(open) => !open && setConfirmRemoveId(null)}>
+        <DialogContent className="border-border bg-background/95 backdrop-blur-xl sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove receipt?</DialogTitle>
+            <DialogDescription>
+              This will remove the receipt attachment from this expense. The expense itself will not be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setConfirmRemoveId(null)} disabled={!!removingReceiptId}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!!removingReceiptId}
+              onClick={() => {
+                if (confirmRemoveId) {
+                  setConfirmRemoveId(null);
+                  void removeBrokenReceiptReference(confirmRemoveId);
+                }
+              }}
+            >
+              {removingReceiptId ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <X className="mr-2 h-4 w-4" />
+              )}
+              Remove
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

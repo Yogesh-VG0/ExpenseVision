@@ -1,7 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useMemo } from "react";
+import { Camera } from "lucide-react";
 import { OverviewCards } from "@/components/dashboard/overview-cards";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
@@ -107,12 +109,39 @@ export function DashboardClient({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Your financial overview at a glance
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Your financial overview at a glance
+          </p>
+        </div>
+
+        {/* Desktop-compact scan shortcut */}
+        <Link
+          href="/receipts/capture"
+          className="hidden items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 sm:inline-flex"
+        >
+          <Camera className="h-4 w-4" />
+          Scan Receipt
+        </Link>
       </div>
+
+      {/* Mobile Quick Scan — prominent CTA */}
+      <Link
+        href="/receipts/capture"
+        className="group flex items-center gap-4 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent p-4 transition-all hover:border-primary/40 hover:shadow-md sm:hidden"
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg transition-transform group-hover:scale-105">
+          <Camera className="h-6 w-6 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Quick Scan Receipt</p>
+          <p className="text-sm text-muted-foreground">
+            Snap a photo to log an expense instantly
+          </p>
+        </div>
+      </Link>
 
       <OverviewCards data={analytics} />
 

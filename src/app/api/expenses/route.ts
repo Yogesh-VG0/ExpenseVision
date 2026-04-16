@@ -22,10 +22,12 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("end_date");
     const search = searchParams.get("search");
     const sort = searchParams.get("sort");
+    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10) || 50));
 
     let query = supabase
       .from("expenses")
-      .select("*")
+      .select("*", { count: "exact" })
       .eq("user_id", user.id);
 
     if (category) {
@@ -60,10 +62,22 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    const { data: expenses, error } = await query;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    query = query.range(from, to);
+
+    const { data: expenses, error, count } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ expenses });
+    return NextResponse.json({
+      expenses,
+      pagination: {
+        page,
+        limit,
+        total: count ?? 0,
+        totalPages: count ? Math.ceil(count / limit) : 0,
+      },
+    });
   } catch (error) {
     console.error("GET /api/expenses error:", error);
     return NextResponse.json({ error: "Failed to fetch expenses" }, { status: 500 });

@@ -104,17 +104,17 @@ export async function POST() {
       })
     );
 
-    const prompt = `You are a personal finance advisor. Analyze this spending data and provide actionable insights.
+    const prompt = `You are a concise personal finance advisor. Analyze this data and return sharp, scannable insights.
 
-Current month spending: $${totalSpent.toFixed(2)} across ${currentMonthExpenses.length} transactions.
+SPENDING: $${totalSpent.toFixed(2)} across ${currentMonthExpenses.length} transactions this month.
 
-Spending by category:
+BY CATEGORY:
 ${Object.entries(categoryTotals)
   .sort(([, a], [, b]) => (b as number) - (a as number))
   .map(([cat, total]) => `- ${cat}: $${(total as number).toFixed(2)}`)
   .join("\n")}
 
-Budget status:
+BUDGETS:
 ${
   budgetSummary.length > 0
     ? budgetSummary
@@ -126,7 +126,7 @@ ${
     : "No budgets set."
 }
 
-Recent transactions (last 10):
+RECENT (last 10):
 ${recentExpenses
   .slice(0, 10)
   .map(
@@ -135,20 +135,17 @@ ${recentExpenses
   )
   .join("\n")}
 
-Generate 3-5 personalized financial insights. Return ONLY valid JSON array (no markdown, no code fences):
-[
-  {
-    "type": "spending_summary" | "savings_tip" | "budget_alert" | "trend_analysis",
-    "title": "<short title>",
-    "content": "<2-3 sentence actionable insight>"
-  }
-]
+Return ONLY a valid JSON array (no markdown, no code fences) with 3–5 insights:
+[{ "type": "spending_summary"|"savings_tip"|"budget_alert"|"trend_analysis", "title": "...", "content": "..." }]
 
-Rules:
+STRICT RULES for each insight:
+- "title": max 6 words, plain language, no jargon
+- "content": exactly 1–2 sentences. First sentence = what happened (with a specific dollar amount or %). Second sentence = one clear action or takeaway.
+- Do NOT repeat the title in the content
+- Do NOT give generic advice — be specific to the numbers above
 - If any budget is over 80%, include a budget_alert
 - Always include at least one savings_tip
-- Be specific with dollar amounts and percentages
-- Be encouraging but honest`;
+- Be encouraging but direct`;
 
     const validTypes = [
       "spending_summary",

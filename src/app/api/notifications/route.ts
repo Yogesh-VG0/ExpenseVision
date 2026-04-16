@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { notificationMutationRateLimit } from "@/lib/redis";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
  * PATCH — mark notification(s) as read
  */
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -16,12 +16,18 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: notifications, error } = await supabase
+    const { searchParams } = request.nextUrl;
+    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10) || 50));
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    const { data: notifications, error, count } = await supabase
       .from("notifications")
-      .select("*")
+      .select("*", { count: "exact" })
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .range(from, to);
 
     if (error) throw error;
 
@@ -34,6 +40,12 @@ export async function GET() {
     return NextResponse.json({
       notifications: notifications ?? [],
       unreadCount: unreadCount ?? 0,
+      pagination: {
+        page,
+        limit,
+        total: count ?? 0,
+        totalPages: count ? Math.ceil(count / limit) : 0,
+      },
     });
   } catch (error) {
     console.error("GET /api/notifications error:", error);

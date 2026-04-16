@@ -5,11 +5,13 @@ export const RECEIPT_ALLOWED_TYPES = [
   "image/png",
   "image/webp",
   "image/gif",
+  "image/heic",
+  "image/heif",
   "application/pdf",
 ] as const;
 
 export const RECEIPT_ALLOWED_EXTENSIONS = [
-  ".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf",
+  ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif", ".pdf",
 ] as const;
 
 export const RECEIPT_MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -34,6 +36,9 @@ const FILE_SIGNATURES: Array<{
   // PDF: %PDF
   { mime: "application/pdf", bytes: [0x25, 0x50, 0x44, 0x46] },
 ];
+
+// HEIC/HEIF brand codes that appear after the `ftyp` box marker at offset 4
+const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"];
 
 export function buildReceiptHistoryItem(
   expense: Expense,
@@ -91,10 +96,23 @@ export function validateReceiptFileBytes(
   bytes: ArrayBuffer,
   claimedType: string
 ): string | null {
-  const header = new Uint8Array(bytes, 0, Math.min(12, bytes.byteLength));
+  const header = new Uint8Array(bytes, 0, Math.min(16, bytes.byteLength));
 
   if (header.length < 4) {
     return "File is too small to be a valid receipt image or PDF.";
+  }
+
+  // HEIC/HEIF: ISO BMFF `ftyp` box — bytes 4-7 are "ftyp", bytes 8-11 are brand
+  if (header.length >= 12 &&
+      header[4] === 0x66 && header[5] === 0x74 && // ft
+      header[6] === 0x79 && header[7] === 0x70) {  // yp
+    const brand = String.fromCharCode(header[8], header[9], header[10], header[11]);
+    if (HEIC_BRANDS.includes(brand)) {
+      if (claimedType !== "image/heic" && claimedType !== "image/heif") {
+        return `File content (HEIC/HEIF) does not match claimed type (${claimedType}).`;
+      }
+      return null;
+    }
   }
 
   // Find matching signature
@@ -164,6 +182,10 @@ export function inferReceiptMimeType(fileName: string) {
       return "image/webp";
     case "gif":
       return "image/gif";
+    case "heic":
+      return "image/heic";
+    case "heif":
+      return "image/heif";
     case "pdf":
       return "application/pdf";
     default:

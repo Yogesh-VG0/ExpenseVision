@@ -30,3 +30,21 @@ services:
         sync: false
       - key: VAPID_PRIVATE_KEY
         sync: false
+      - key: CRON_SECRET
+        generateValue: true
+
+  - type: cron
+    name: expensevision-weekly-summary
+    runtime: node
+    schedule: "0 9 * * 1"
+    buildCommand: echo "no build needed"
+    startCommand: >-
+      curl -s -X POST
+      "$NEXT_PUBLIC_APP_URL/api/cron/weekly-summary"
+      -H "Authorization: Bearer $CRON_SECRET"
+      -H "Content-Type: application/json"
+    envVars:
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false

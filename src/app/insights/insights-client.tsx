@@ -11,11 +11,16 @@ import {
   Brain,
   Loader2,
   RefreshCw,
+  DollarSign,
+  Calendar,
+  Repeat,
+  ShoppingCart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -25,7 +30,6 @@ import { Separator } from "@/components/ui/separator";
 import { useCurrency } from "@/components/currency-provider";
 import type { Expense } from "@/lib/types";
 
-/* ---------- Insight type from AI endpoint ---------- */
 interface InsightItem {
   type: "spending_summary" | "savings_tip" | "budget_alert" | "trend_analysis";
   title: string;
@@ -60,24 +64,23 @@ const INSIGHT_META: Record<
   },
 };
 
-/* ---------- Props ---------- */
 interface InsightsClientProps {
   currentMonthExpenses: Expense[];
+  initialInsights?: InsightItem[];
 }
 
 export function InsightsClient({
   currentMonthExpenses,
+  initialInsights = [],
 }: InsightsClientProps) {
   const { format: formatCurrency } = useCurrency();
-  const [insights, setInsights] = useState<InsightItem[]>([]);
+  const [insights, setInsights] = useState<InsightItem[]>(initialInsights);
   const [loading, setLoading] = useState(false);
 
-  /* ---------- Quick Stats (computed client-side) ---------- */
   const quickStats = useMemo(() => {
     const expenses = currentMonthExpenses;
     if (expenses.length === 0) return null;
 
-    // Highest spending category
     const categoryTotals: Record<string, number> = {};
     expenses.forEach((e) => {
       categoryTotals[e.category] =
@@ -87,7 +90,6 @@ export function InsightsClient({
       (a, b) => b[1] - a[1]
     )[0];
 
-    // Day of week with most spending
     const dayTotals: Record<string, number> = {};
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     expenses.forEach((e) => {
@@ -96,12 +98,10 @@ export function InsightsClient({
     });
     const topDay = Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0];
 
-    // Average daily spend
     const uniqueDays = new Set(expenses.map((e) => e.date)).size;
     const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
     const avgDaily = uniqueDays > 0 ? totalSpent / uniqueDays : 0;
 
-    // Recurring vs one-time
     const recurring = expenses.filter((e) => e.is_recurring);
     const oneTime = expenses.filter((e) => !e.is_recurring);
 
@@ -115,10 +115,11 @@ export function InsightsClient({
       oneTime: oneTime.reduce((s, e) => s + e.amount, 0),
       recurringCount: recurring.length,
       oneTimeCount: oneTime.length,
+      totalSpent,
+      transactionCount: expenses.length,
     };
   }, [currentMonthExpenses]);
 
-  /* ---------- Generate Insights ---------- */
   const generateInsights = async () => {
     setLoading(true);
     try {
@@ -141,12 +142,12 @@ export function InsightsClient({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            <Sparkles className="mr-2 inline-block h-6 w-6 text-accent" />
+          <h1 className="text-3xl font-bold tracking-tight">
+            <Sparkles className="mr-2 inline-block h-8 w-8 text-accent" />
             AI Insights
           </h1>
           <p className="mt-1 text-muted-foreground">
@@ -172,70 +173,89 @@ export function InsightsClient({
         <div>
           <h2 className="mb-4 text-xl font-semibold">Quick Stats</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Top Category */}
-            <Card className="border-border bg-card/80 backdrop-blur-sm">
+            <Card className="border-border/50 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-muted/40">
               <CardContent className="p-5">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Top Category
-                </p>
-                <p className="mt-2 text-lg font-bold">
-                  {quickStats.topCategory?.name ?? "—"}
-                </p>
-                <p className="text-sm text-primary">
-                  {quickStats.topCategory
-                    ? formatCurrency(quickStats.topCategory.amount)
-                    : "—"}
-                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <ShoppingCart className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Top Category
+                    </p>
+                    <p className="text-lg font-bold">
+                      {quickStats.topCategory?.name ?? "—"}
+                    </p>
+                    <p className="text-sm text-primary">
+                      {quickStats.topCategory
+                        ? formatCurrency(quickStats.topCategory.amount)
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Busiest Day */}
-            <Card className="border-border bg-card/80 backdrop-blur-sm">
+            <Card className="border-border/50 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-muted/40">
               <CardContent className="p-5">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Busiest Day
-                </p>
-                <p className="mt-2 text-lg font-bold">
-                  {quickStats.topDay?.name ?? "—"}
-                </p>
-                <p className="text-sm text-accent">
-                  {quickStats.topDay
-                    ? formatCurrency(quickStats.topDay.amount)
-                    : "—"}
-                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+                    <Calendar className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Busiest Day
+                    </p>
+                    <p className="text-lg font-bold">
+                      {quickStats.topDay?.name ?? "—"}
+                    </p>
+                    <p className="text-sm text-accent">
+                      {quickStats.topDay
+                        ? formatCurrency(quickStats.topDay.amount)
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Average Daily */}
-            <Card className="border-border bg-card/80 backdrop-blur-sm">
+            <Card className="border-border/50 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-muted/40">
               <CardContent className="p-5">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Avg Daily Spend
-                </p>
-                <p className="mt-2 text-lg font-bold">
-                  {formatCurrency(quickStats.avgDaily)}
-                </p>
-                <p className="text-sm text-muted-foreground">this month</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+                    <DollarSign className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Avg Daily Spend
+                    </p>
+                    <p className="text-lg font-bold">
+                      {formatCurrency(quickStats.avgDaily)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">this month</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Recurring vs One-time */}
-            <Card className="border-border bg-card/80 backdrop-blur-sm">
+            <Card className="border-border/50 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-muted/40">
               <CardContent className="p-5">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Recurring vs One-time
-                </p>
-                <p className="mt-2 text-lg font-bold">
-                  {formatCurrency(quickStats.recurring)}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    {" "}
-                    ({quickStats.recurringCount})
-                  </span>
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {formatCurrency(quickStats.oneTime)} one-time (
-                  {quickStats.oneTimeCount})
-                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+                    <Repeat className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Recurring
+                    </p>
+                    <p className="text-lg font-bold">
+                      {formatCurrency(quickStats.recurring)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {quickStats.recurringCount} subscription{quickStats.recurringCount !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -244,19 +264,41 @@ export function InsightsClient({
 
       <Separator className="bg-muted/50" />
 
-      {/* AI Insights */}
+      {/* AI Insights Grid */}
       <div>
-        <h2 className="mb-4 text-xl font-semibold">AI-Generated Insights</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Brain className="h-5 w-5 text-accent" />
+            AI-Generated Insights
+          </h2>
+          {!loading && insights.length > 0 && insights[0].created_at && (
+            <p className="text-xs text-muted-foreground/60">
+              Generated{" "}
+              {new Date(insights[0].created_at).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </p>
+          )}
+        </div>
 
         {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <Card
                 key={i}
-                className="border-border bg-card/80 backdrop-blur-sm"
+                className="border-border/50 bg-card/50 backdrop-blur-sm"
               >
                 <CardContent className="space-y-3 p-6">
-                  <Skeleton className="h-5 w-24" />
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-9 w-9 rounded-lg" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
                   <Skeleton className="h-4 w-full" />
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-4 w-1/2" />
@@ -265,52 +307,93 @@ export function InsightsClient({
             ))}
           </div>
         ) : insights.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {insights.map((insight, idx) => {
-              const meta = INSIGHT_META[insight.type] ?? INSIGHT_META.spending_summary;
-              const Icon = meta.icon;
-              return (
-                <div key={idx} className="group relative flex rounded-xl p-[1px]">
-                  {/* Gradient border */}
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-accent/40 via-primary/20 to-transparent opacity-60 transition-opacity group-hover:opacity-100" />
-                  <Card className="relative flex flex-col border-0 bg-card/80 backdrop-blur-sm w-full">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${meta.gradient}`}
-                        >
-                          <Icon className={`h-4 w-4 ${meta.color}`} />
-                        </div>
-                        <div>
-                          <CardTitle className="text-sm">
-                            {insight.title}
-                          </CardTitle>
-                          <Badge
-                            variant="secondary"
-                            className="mt-1 text-[10px]"
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {insights.map((insight, idx) => {
+                const meta = INSIGHT_META[insight.type] ?? INSIGHT_META.spending_summary;
+                const Icon = meta.icon;
+                return (
+                  <div
+                    key={idx}
+                    className="group relative flex rounded-xl p-[1px] transition-all duration-300"
+                    style={{ animationDelay: `${idx * 100}ms` }}
+                  >
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-accent/40 via-primary/20 to-transparent opacity-40 transition-opacity duration-300 group-hover:opacity-100" />
+                    <Card className="relative flex flex-col border-0 bg-card/80 backdrop-blur-sm w-full">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${meta.gradient}`}
                           >
-                            {insight.type.replace(/_/g, " ")}
-                          </Badge>
+                            <Icon className={`h-4 w-4 ${meta.color}`} />
+                          </div>
+                          <div>
+                            <CardTitle className="text-sm">
+                              {insight.title}
+                            </CardTitle>
+                            <Badge
+                              variant="secondary"
+                              className="mt-1 text-[10px]"
+                            >
+                              {insight.type.replace(/_/g, " ")}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="flex-1 pt-0">
-                      <p className="text-sm leading-relaxed text-muted-foreground">
-                        {insight.content}
-                      </p>
-                      {insight.created_at && (
-                        <p className="mt-3 text-[11px] text-muted-foreground/60">
-                          {new Date(insight.created_at).toLocaleString()}
+                      </CardHeader>
+                      <CardContent className="flex-1 pt-0">
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                          {insight.content}
                         </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              );
-            })}
-          </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Full AI Analysis Report */}
+            {insights.length >= 3 && (
+              <>
+                <Separator className="my-6 bg-muted/50" />
+                <Card className="border-accent/20 bg-card/50 backdrop-blur-sm">
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-primary">
+                        <Brain className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle>Full AI Analysis Report</CardTitle>
+                        <CardDescription>
+                          Comprehensive analysis of your spending patterns
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {insights.map((insight, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-lg border border-accent/20 bg-accent/5 p-4"
+                        >
+                          <div className="mb-2 flex items-center gap-2">
+                            <Badge variant="secondary" className="text-[10px]">
+                              {insight.type.replace(/_/g, " ")}
+                            </Badge>
+                          </div>
+                          <p className="text-sm leading-relaxed text-muted-foreground">
+                            {insight.content}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </>
         ) : (
-          <Card className="border-border bg-card/80 backdrop-blur-sm">
+          <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
             <CardContent className="flex flex-col items-center justify-center py-16">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-accent/20 to-primary/20">
                 <Brain className="h-8 w-8 text-accent" />

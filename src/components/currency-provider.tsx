@@ -8,7 +8,6 @@ interface CurrencyContextValue {
   format: (amount: number) => string;
 }
 
-/** Map common locale region codes to currencies */
 const LOCALE_CURRENCY_MAP: Record<string, string> = {
   US: "USD", GB: "GBP", EU: "EUR", DE: "EUR", FR: "EUR", ES: "EUR",
   IT: "EUR", NL: "EUR", BE: "EUR", AT: "EUR", PT: "EUR", IE: "EUR",
@@ -21,6 +20,7 @@ const LOCALE_CURRENCY_MAP: Record<string, string> = {
 };
 
 function detectCurrencyFromLocale(): string {
+  if (typeof window === "undefined") return "USD";
   try {
     const locale = Intl.DateTimeFormat().resolvedOptions().locale;
     const region = locale.split("-").pop()?.toUpperCase();
@@ -41,6 +41,8 @@ function detectCurrencyFromLocale(): string {
   return "USD";
 }
 
+const DIRHAM = "\u20C3";
+
 const CurrencyContext = createContext<CurrencyContextValue>({
   currency: "USD",
   format: (amount) =>
@@ -48,33 +50,49 @@ const CurrencyContext = createContext<CurrencyContextValue>({
 });
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [currency, setCurrency] = useState(() => detectCurrencyFromLocale());
+  // Always start with "USD" for SSR; locale detection runs client-side in useEffect
+  const [currency, setCurrency] = useState("USD");
 
   useEffect(() => {
+    let resolved = false;
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+      if (!user) {
+        if (!resolved) setCurrency(detectCurrencyFromLocale());
+        return;
+      }
       supabase
         .from("profiles")
         .select("currency")
         .eq("id", user.id)
         .single()
         .then(({ data }) => {
-          if (data?.currency) setCurrency(data.currency);
+          resolved = true;
+          setCurrency(data?.currency || detectCurrencyFromLocale());
         });
     });
   }, []);
 
   const format = useMemo(() => {
-    // AED uses the new UAE Dirham symbol (custom font)
     if (currency === "AED") {
       const numberFmt = new Intl.NumberFormat("en-AE", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       });
-      return (amount: number) => `\u00EA\u00A0${numberFmt.format(amount)}`;
+      return (amount: number) => `${DIRHAM}\u00A0${numberFmt.format(amount)}`;
     }
-    const formatter = new Intl.NumberFormat("en-US", {
+
+    const localeMap: Record<string, string> = {
+      INR: "en-IN",
+      GBP: "en-GB",
+      EUR: "de-DE",
+      JPY: "ja-JP",
+      AUD: "en-AU",
+      CAD: "en-CA",
+      SGD: "en-SG",
+    };
+    const locale = localeMap[currency] ?? "en-US";
+    const formatter = new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
     });
@@ -83,7 +101,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   return (
     <CurrencyContext value={{ currency, format }}>
-      <div data-currency={currency}>
+      <div data-currency={currency} suppressHydrationWarning>
         {children}
       </div>
     </CurrencyContext>

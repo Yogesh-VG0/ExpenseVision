@@ -1,295 +1,290 @@
 # ExpenseVision
 
-ExpenseVision is a Next.js 16 + Supabase expense tracker focused on fast receipt capture, AI-assisted extraction, budgets, analytics, and an installable mobile-friendly PWA experience.
+**AI-powered expense tracking with receipt OCR, smart budgets, and financial insights — built as a production-grade PWA.**
 
-## Stack
+[![Live App](https://img.shields.io/badge/Live-expensevision.tech-F59E0B?style=flat-square&logo=vercel)](https://expensevision.tech)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16.2-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![React 19](https://img.shields.io/badge/React-19.2-61DAFB?style=flat-square&logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
+[![Supabase](https://img.shields.io/badge/Supabase-Auth%20%7C%20DB%20%7C%20Storage-3FCF8E?style=flat-square&logo=supabase)](https://supabase.com)
+[![Tailwind CSS 4](https://img.shields.io/badge/Tailwind-v4-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com)
+[![Render](https://img.shields.io/badge/Deployed%20on-Render-46E3B7?style=flat-square&logo=render)](https://render.com)
 
-- Next.js App Router
-- React 19
-- Supabase Auth, Database, and Storage
-- Tailwind CSS 4
-- Sonner toasts
-- Vitest for unit tests
-- Upstash Redis rate limiting when configured
+---
 
-## Current Product State
+## What is ExpenseVision?
 
-Already implemented in the app:
+ExpenseVision is a full-featured personal finance application that lets users track expenses, scan receipts with AI-powered OCR, set category budgets with automatic alerts, import bank CSVs, and receive AI-generated spending insights. It ships as an installable Progressive Web App with offline support, share-target integration, and push notification infrastructure.
 
-- email/password authentication
-- expense tracking and filtering
-- budget management
-- AI insights generation
-- receipt OCR with storage persistence
-- receipt history with signed URL access
-- account deletion with storage cleanup and auth-user removal
-- install prompt banner and basic service worker caching
+Built with Next.js 16 (App Router), React 19, Supabase, Google Gemini, and Tailwind CSS v4 — deployed on Render's free tier with Upstash Redis for rate limiting.
 
-## Phase A Hardening Included
+**[Try the live demo →](https://expensevision.tech/demo)**
 
-This repository now includes a hardened receipt flow:
+---
 
-- OCR responses explicitly model `success`, `partial`, and `error`
-- storage upload and OCR can fail independently without collapsing into one generic error
-- users can retry OCR from a stored receipt path
-- users can retry upload from the original file in the current session
-- users can save manually even when OCR is weak or unavailable
-- broken receipt references can be removed from saved expenses
-- receipts page no longer falls back to raw storage paths when signed URL generation fails
-- install prompt accept/dismiss actions are tracked through a lightweight telemetry endpoint
-- service worker registration checks for updates more safely across redeploys
+## Features
 
-## Phase B Mobile Capture Included
+| Category | Features |
+|---|---|
+| **Expense Tracking** | Manual entry, search/filter/sort, date range queries, category-color-coded tables, mobile-responsive card layout |
+| **AI Receipt OCR** | Camera capture, file upload, drag-and-drop; Gemini 2.5 Flash primary → OpenRouter free-tier fallback; structured extraction (amount, vendor, date, category, line items, confidence score); magic-byte validation; client-side image compression |
+| **Smart Budgets** | Per-category monthly limits, real-time progress bars, automatic 80%/100% threshold alerts with deduplication |
+| **AI Insights** | On-demand AI-powered spending analysis — summaries, savings tips, budget alerts, trend analysis; fetches real user data server-side |
+| **CSV Import** | 4-step wizard (upload → mapping → preview → import) with auto-detected column mapping, client-side validation, server-side chunked batches (50 rows/chunk), duplicate detection, category suggestion |
+| **Notifications** | In-app notification center with unread badges, budget warning/exceeded alerts, weekly summaries (Render cron), read/mark-all-read, push delivery via web-push (VAPID) |
+| **PWA** | Installable standalone app, service worker with cache-first static + network-first navigation, Background Sync for offline expense queue, Web Share Target for receipt import, File Handlers for OS-level file opening, Launch Queue consumption |
+| **Multi-Currency** | Auto-detected from locale/timezone; 30+ currencies including UAE Dirham with custom font glyph; user-configurable in profile |
+| **Demo Mode** | Full read-only demo at `/demo` with 20 realistic expenses, 7 budgets, 4 AI insights — no account required |
+| **Auth** | Email/password + Google + GitHub OAuth via Supabase Auth; email confirmation; password reset; session-based middleware protection |
+| **Security** | Supabase RLS on all tables, server-side auth on all API routes, file magic-byte validation (JPEG/PNG/WebP/GIF/HEIC/PDF), Zod input validation, CSP/HSTS/X-Frame-Options headers, open-redirect prevention, rate limiting on all mutation routes |
 
-The receipt flow now also includes a dedicated mobile-first capture experience:
+---
 
-- a dedicated `/receipts/capture` route designed for installed-PWA and mobile use
-- camera-first and file/PDF import actions with large tap targets
-- immediate preview after selection when the browser can render the file locally
-- client-side optimization for oversized JPEG and WebP receipt photos when that reduces upload cost safely
-- reuse of the same hardened OCR, review, recovery, and save workflow already used on the main receipts page
-- immersive app-shell behavior on the dedicated capture route so the scanner feels more app-like on mobile
+## Tech Stack
 
-## Phase C Share Into ExpenseVision Included
+| Layer | Technology |
+|---|---|
+| **Framework** | Next.js 16.2.3 (App Router, standalone output) |
+| **Language** | TypeScript (strict mode) |
+| **UI** | React 19, Tailwind CSS v4, shadcn/ui (base-nova), @base-ui/react, Lucide icons |
+| **Database** | Supabase PostgreSQL with RLS |
+| **Auth** | Supabase Auth (email/password, Google OAuth, GitHub OAuth) |
+| **Storage** | Supabase Storage (private `receipts` bucket, signed URLs) |
+| **AI / OCR** | Google Gemini 2.5 Flash (direct API) → OpenRouter free models (fallback) |
+| **Caching** | Upstash Redis (sliding-window rate limiting) |
+| **Charts** | Recharts |
+| **Validation** | Zod v4 |
+| **Testing** | Vitest (76 unit tests), Playwright (E2E) |
+| **CI/CD** | GitHub Actions (type-check → lint → test → build) |
+| **Deployment** | Render (free tier, standalone Node.js server) |
+| **PWA** | Custom service worker, Web App Manifest, Background Sync, Share Target, File Handlers |
 
-The installed-app receipt flow now also supports direct sharing into ExpenseVision on supported platforms:
+---
 
-- Web Share Target manifest support for receipt images and PDFs
-- dedicated share-target receiver that uploads the shared file once, then redirects into `/receipts/capture`
-- reuse of the existing capture, OCR, review, retry, manual-save, and expense-save flow after the handoff
-- local resume state so refresh/reopen can restore the in-progress review without blindly re-uploading the file
-- duplicate-save protection for already-linked shared receipt paths
-- subtle installed-app education explaining how direct receipt sharing works and when to fall back to capture mode
+## Architecture
 
-## Phase D Offline Resilience Included
+```
+Browser (React 19 client)
+    │
+    ├── Next.js App Router (server components + client components)
+    │       │
+    │       ├── Middleware (src/proxy.ts) — auth enforcement, route protection
+    │       │
+    │       ├── Server Components — SSR data fetching via Supabase server client
+    │       │
+    │       └── API Routes (/api/*) — business logic, AI calls, rate limiting
+    │               │
+    │               ├── Supabase PostgreSQL (RLS-protected tables)
+    │               ├── Supabase Storage (private receipt bucket)
+    │               ├── Google Gemini API (OCR + Insights)
+    │               ├── OpenRouter API (fallback AI)
+    │               └── Upstash Redis (rate limiting)
+    │
+    ├── Service Worker (sw.js) — caching, Background Sync, Push
+    │
+    └── IndexedDB — offline expense queue
+```
 
-The PWA integrates an offline-first architecture for expense creation:
+---
 
-- IndexedDB-backed offline queue for pending expense uploads
-- Service Worker Background Sync support to automatically upload expenses when network returns
-- In-app `PendingQueuePanel` to manage and manually retry queued uploads
-- API Idempotency keys to prevent duplicate records if a request is retried after a successful but unacknowledged insert
+## Key User Flows
 
-## Phase E Notifications & Alerts Included
+1. **Receipt → Expense**: Capture/upload receipt → client compression → server upload to Supabase Storage → OCR via Gemini/OpenRouter → review extracted fields → save expense with receipt link
+2. **Budget Alert**: Add expense → server checks category budget → creates notification at 80% or 100% threshold → badge appears in nav → notification center shows alert
+3. **CSV Import**: Select file → auto-detect columns → map/validate → chunked server import with duplicate detection → budget alerts fire per category
+4. **Offline Save**: Network fails during save → expense queued in IndexedDB → Background Sync registered → queue processes on reconnect → idempotency key prevents duplicates
+5. **Share Target**: Share receipt image from another app → ExpenseVision receives file → upload + store draft → redirect to capture flow → OCR + review + save
 
-An in-app notification system keeps budgets on track:
-
-- Automatic Budget Alerts triggered at 80% and 100% of monthly spending limits
-- Weekly summary report generation
-- In-app notification center (`/notifications`) with unread badges and mark-as-read functionality
-- Persistent user notification preferences in the Supabase `profiles` table
-- Budget alerts and weekly summaries respect user opt-out preferences
-- VAPID Push Subscription UI for opt-in browser push (capability-gated)
-
-> **Push limitation:** Push subscription storage and service worker handlers are implemented. Server-side push delivery (using `web-push` to send notifications to device endpoints) is not yet implemented. The in-app notification center is the primary supported notification experience.
-
-## Phase F Data Quality Included
-
-Data ingest is now cleaner and warns about likely duplicates:
-
-- Strong **merchant normalization** using 80+ known variants and noise-suffix stripping engine
-- **Duplicate detection** scoring based on proximity of vendor name, amount, and date (with confidence levels)
-- Context-aware **category suggestions** leveraging both merchant maps and fallback OCR keywords
-- Interactive `DuplicateWarningDialog` component forcing explicit review before saving probable duplicates
-
-## Phase G CSV Import Included
-
-Bulk transaction intake supports easy onboarding:
-
-- A dedicated `/imports` route housing a 5-step `CSVImportWizard`
-- Robust `csv-parser` mapping engine that auto-detects column headers (Date, Amount, Category, Vendor)
-- Client-side validation stripping currency symbols and standardizing US/ISO date formats
-- Server-side chunked import batches via `/api/expenses/import` to avoid one-request-per-row churn on free-tier hosting
-- Shared validation, idempotency keys, duplicate detection, and category suggestion logic reused during imports
-- Default CSV import limit reduced to 2,000 rows per import for smoother free-tier behavior
-- *Email Receipt Architecture document included in `docs/` for future webhook implementation*
-
-## Phase H PWA Polish Included
-
-Deep OS integration through advanced manifest capabilities:
-
-- `file_handlers` support enabling users to open image/PDF files directly into the ExpenseVision capture flow on supported desktop OS (Chromium only)
-- `launchQueue` consumption that passes opened files into the receipt capture pipeline via sessionStorage
-- Pre-configured Web App shortcuts
-
-> **Platform note:** File handlers and launchQueue are Chromium desktop-only progressive enhancements. On unsupported browsers/platforms, the capture flow remains fully functional through manual file selection.
-
-## Phase I Testing & E2E framework
-
-Test coverage and pipelines have been significantly expanded:
-
-- 76 deterministic unit tests across 11 test files covering offline mechanics, duplicate detection, string normalization, and more
-- Clean strict-mode TypeScript baseline (`tsc --noEmit`)
-- Playwright configuration for E2E manual expense flow tests (`e2e/happy-path.spec.ts`)
-
-> **E2E scope note:** The current Playwright spec covers sign-in → manual expense creation → verification. Receipt OCR E2E requires real AI provider credentials and is not covered by the current spec.
+---
 
 ## Local Setup
 
-See `docs/setup.md` for a complete walkthrough.
+### Prerequisites
 
-Quick start:
+- Node.js 20+
+- A [Supabase](https://supabase.com) project (free tier works)
+- At least one AI API key: `GEMINI_API_KEY` or `OPENROUTER_API_KEY`
 
-1. Install dependencies.
+### Steps
 
 ```bash
+git clone https://github.com/your-username/ExpenseVision.git
+cd ExpenseVision
 npm install
 ```
 
-2. Copy `.env.example` to `.env.local` and fill in the required values.
+Copy the environment template and fill in your values:
 
-3. Run the Supabase SQL migrations in `supabase/migrations/`.
+```bash
+cp .env.example .env.local
+```
 
-4. Optionally generate VAPID keys for push subscription UI testing (`npx web-push generate-vapid-keys`) and add them to `.env.local`.
+Apply Supabase migrations in order:
 
-5. Create a private `receipts` storage bucket in Supabase.
+```sql
+-- Run in Supabase SQL Editor:
+-- 001_initial_schema.sql
+-- 002_align_categories.sql
+-- 003_add_profiles_insert_policy.sql
+-- 004_add_idempotency_key.sql
+-- 005_notifications_table.sql
+-- 006_push_subscriptions.sql
+-- 007_budget_unique_constraint.sql
+```
 
-6. Start the dev server.
+Create a private `receipts` storage bucket in Supabase Dashboard with 10 MB file limit.
+
+Start the dev server:
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open [http://localhost:3000](http://localhost:3000).
+
+---
 
 ## Environment Variables
 
-Required for core app access:
+| Variable | Required | Description |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
+| `NEXT_PUBLIC_APP_URL` | Yes | Public app URL (e.g., `https://expensevision.tech`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | For account deletion | Supabase service role key (admin operations) |
+| `GEMINI_API_KEY` | For AI features | Google Gemini API key |
+| `OPENROUTER_API_KEY` | Fallback AI | OpenRouter API key (free models available) |
+| `UPSTASH_REDIS_REST_URL` | Optional | Upstash Redis URL for rate limiting |
+| `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis token |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Optional | VAPID public key for push notifications |
+| `VAPID_PRIVATE_KEY` | Optional | VAPID private key |
+| `CRON_SECRET` | Optional | Secret for authenticated cron endpoints |
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_APP_URL`
-
-Required for full account deletion:
-
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Required for AI-enhanced OCR and insights:
-
-- `GEMINI_API_KEY` or `OPENROUTER_API_KEY`
-
-Optional for rate limiting:
-
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
-
-Optional for push subscription UI:
-
-- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
-- `VAPID_PRIVATE_KEY`
-
-## Supabase Notes
-
-Apply the SQL migrations in order:
-
-- `001_initial_schema.sql`
-- `002_align_categories.sql`
-- `003_add_profiles_insert_policy.sql`
-- `004_add_idempotency_key.sql`
-- `005_notifications_table.sql`
-- `006_push_subscriptions.sql`
-
-The app expects a private `receipts` bucket with storage policies that let authenticated users insert, read, and delete files inside their own folder.
-
-Account deletion depends on the service-role key because auth-user deletion is an admin operation.
-
-## Receipt Flow
-
-Receipt ingestion currently works like this:
-
-1. User opens `/receipts` or the dedicated `/receipts/capture` flow.
-2. User captures a photo or uploads an image/PDF.
-3. Large supported photos can be optimized client-side before upload.
-4. The file is previewed locally as early as possible.
-5. The file is validated client-side and server-side.
-6. Server-side signature validation happens before any storage upload or receipt-row persistence.
-7. OCR runs through Gemini first, then OpenRouter fallback when configured.
-8. The response returns structured OCR data plus upload/OCR status metadata.
-9. The review screen lets the user edit merchant, amount, category, date, and notes before saving.
-10. Saving the expense links `expenses.receipt_url` to the storage path and backfills the `receipts` table link if needed.
-
-When Web Share Target is supported in an installed app, the flow can also begin with:
-
-1. User shares a receipt image or PDF from another app into ExpenseVision.
-2. `/receipts/share-target` validates and uploads the shared file once, then stores a short-lived draft handoff.
-3. `/receipts/capture` resumes from that stored receipt path, refreshes preview access when possible, runs OCR, and opens the same review UI.
-4. Refresh/reopen reuses local resume state so the user does not have to repeat the import handoff.
-
-When file handlers are supported (Chromium desktop), the flow can also begin with:
-
-1. User opens a receipt image or PDF file with ExpenseVision from the OS file picker.
-2. The `launchQueue` consumer reads the file, stores it in sessionStorage, and navigates to `/receipts/capture`.
-3. The capture page reads the file from sessionStorage and processes it through the normal capture flow.
-
-## Telemetry
-
-The app includes a lightweight telemetry abstraction in `src/lib/telemetry.ts` and a server ingestion route at `src/app/api/telemetry/route.ts`.
-
-Current tracked events:
-
-- OCR start, success, and failure
-- expense save success and failure
-- install prompt accepted and dismissed
-- push subscription accepted and failed
-
-The abstraction is intentionally simple so a future analytics provider can be added without rewriting product flows.
+---
 
 ## Scripts
 
 ```bash
-npm run dev
-npm run lint
-npm test
+npm run dev       # Start development server
+npm run build     # Production build (standalone output)
+npm run start     # Start standalone production server
+npm run lint      # ESLint check
+npm test          # Run Vitest unit tests
+npm run test:watch # Vitest in watch mode
 ```
 
-## Verification Status
+---
 
-Latest local verification completed for this phase:
+## Testing
 
-- `npm run lint`
-- `npm test`
-- `npx tsc --noEmit`
+**Unit Tests** — 76 tests across 11 files covering:
+- Zod validation schemas
+- CSV parser and date/amount parsing
+- Duplicate detection scoring
+- Merchant normalization (80+ known variants)
+- Category suggestion engine
+- Receipt file validation and magic bytes
+- Receipt share draft serialization
+- Offline queue IndexedDB operations
+- Receipt capture compression logic
 
-## Deployment Notes
+**E2E Tests** — Playwright spec for sign-in → add expense → verify flow (requires test credentials).
 
-- Set `NEXT_PUBLIC_APP_URL` to the final deployed origin so OCR fallback requests and PWA metadata resolve correctly.
-- Set `SUPABASE_SERVICE_ROLE_KEY` in the deployment environment if you want real account deletion.
-- Redeploys are safer when the service worker is allowed to update in the background rather than forcing immediate asset takeover.
-- If AI keys are missing, receipt OCR and AI insights degrade with explicit server errors instead of silent failure.
-- `npm run start` now boots the Next standalone server entrypoint through `scripts/run-standalone.mjs` instead of `next start`.
+**CI** — GitHub Actions runs type-check, lint, unit tests, and build on every push/PR to `main`.
 
-### Render Free Deployment
+---
 
-A `render.yaml` blueprint is included for one-click Render deployment.
+## Deployment
 
-- **Build command**: `npm install && npm run build`
-- **Start command**: `npm run start` (runs `node scripts/run-standalone.mjs` for Next standalone output)
-- **Health check path**: `/api/warmup` — returns `{ status: "ok" }` as JSON
-- **Free plan caveat**: Render free services spin down after 15 minutes of inactivity. First request after spin-down takes ~30-60 seconds to cold start.
-- **Environment**: Set all variables from `.env.example` in the Render dashboard under Environment.
+Deployed on **Render free tier** via the included `render.yaml` Blueprint:
 
-### Supabase Free Plan
+- **Build**: `npm install && npm run build`
+- **Start**: `node scripts/run-standalone.mjs` (Next.js standalone server)
+- **Health check**: `/api/warmup` → `{ "status": "ok" }`
+- **Cron**: Weekly spending summary generation every Monday at 9 AM UTC
 
-- Free projects auto-pause after 1 week of inactivity — initial requests after pause may be slow.
-- 500 MB database, 1 GB storage. Ample for personal/portfolio use.
-- A private `receipts` bucket must be created manually. See `docs/setup.md` for storage policy configuration.
-- All 6 migrations in `supabase/migrations/` must be applied in order before first use.
+**Free-tier notes**: Render spins down after 15 min of inactivity. First request after spin-down takes ~30–60s. Supabase free tier auto-pauses after 1 week of inactivity.
 
-## Browser Support Notes
+---
 
-- The install prompt banner depends on browsers that fire `beforeinstallprompt`.
-- `capture="environment"` is a progressive enhancement; some browsers ignore it and fall back to the normal file picker.
-- The dedicated `/receipts/capture` route uses an immersive shell on authenticated app sessions, but it still falls back to normal file input behavior when mobile capture APIs are unavailable.
-- Web Share Target receipt import is a progressive enhancement and typically requires an installed PWA experience on browsers/platforms that implement share targets.
-- Some platforms may not expose ExpenseVision in the system share sheet even after install. In those cases, users should fall back to `/receipts/capture` and use the normal camera/upload actions.
-- Shared receipt import still requires an authenticated app session. If the session has expired, the app redirects back to sign-in and the user may need to reopen the capture flow manually.
-- Shared review state is resumed locally for a limited time to reduce duplicate processing on refresh/reopen, but it is not an offline queue.
-- Client-side optimization currently targets large JPEG and WebP photos. PNG, GIF, and PDF uploads are preserved without attempted recompression.
-- Signed receipt access is refreshed through authenticated API calls; if the underlying storage object is gone, the UI offers a recovery path instead of pretending the image still exists.
-- PDF receipts are supported for upload and OCR processing, but preview availability depends on browser file handling and the current client UI.
-- File handlers and launchQueue are Chromium desktop-only. On other platforms, users open files through the standard capture flow.
-- Background Sync is Chromium-only. Other browsers degrade to the manual retry UI in the `PendingQueuePanel`.
+## PWA / Mobile
 
-## Architecture Reference
+- **Install**: "Install App" button in sidebar, or browser install prompt
+- **Offline**: Expenses queued in IndexedDB, synced via Background Sync (Chromium) or manual retry
+- **Share Target**: Share receipt images/PDFs directly into ExpenseVision from other apps
+- **File Handlers**: Open receipt files with ExpenseVision from OS file picker (Chromium desktop)
+- **Service Worker**: Cache-first for static assets, network-first for navigation, API/auth routes bypass cache
 
-See `docs/architecture.md` for a concise architecture overview of the current app, and `docs/setup.md` for local setup and verification instructions.
+> **Platform caveats**: Background Sync and File Handlers are Chromium-only progressive enhancements. Push notifications are delivered via `web-push` for budget alerts and weekly summaries when VAPID keys are configured. The in-app notification center serves as the primary fallback channel.
+
+---
+
+## Security
+
+- All API routes verify auth server-side via `supabase.auth.getUser()`
+- Supabase RLS enforces `user_id = auth.uid()` on all tables
+- File uploads validated by MIME type, extension, size, and magic bytes
+- Input sanitized with Zod; HTML tags stripped from user text
+- CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy headers
+- Rate limiting on all mutation routes (Upstash Redis, graceful fallback if unconfigured)
+- Open-redirect prevention on auth callback paths
+- Service role key used only for admin account deletion
+
+---
+
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router pages + API routes
+│   ├── api/                # 17 API route files across 11 domains
+│   ├── dashboard/          # Authenticated dashboard (SSR + client)
+│   ├── demo/               # Read-only demo mode (6 pages)
+│   ├── auth/               # OAuth callback + email confirmation
+│   ├── expenses/           # Expense management
+│   ├── budgets/            # Budget management
+│   ├── receipts/           # Receipt scanner + capture + share target
+│   ├── insights/           # AI-powered insights
+│   ├── imports/            # CSV import wizard
+│   ├── notifications/      # Notification center
+│   └── settings/           # Profile + preferences + account deletion
+├── components/             # 53 component files
+│   ├── ui/                 # shadcn/ui primitives (25 components)
+│   ├── landing/            # Landing page sections (11 components)
+│   ├── dashboard/          # Dashboard widgets (5 components)
+│   ├── receipts/           # Receipt workspace + pending queue
+│   ├── expenses/           # Expense form dialog
+│   ├── budgets/            # Budget form dialog
+│   └── imports/            # CSV import wizard
+├── lib/                    # 26 utility modules
+│   ├── supabase/           # Client, server, admin Supabase clients
+│   └── ...                 # Types, validations, AI helpers, offline queue, etc.
+├── __tests__/              # 11 Vitest test files (76 tests)
+└── proxy.ts                # Next.js middleware (auth + route protection)
+supabase/migrations/        # 6 SQL migration files
+public/                     # SW, manifest, icons, fonts
+e2e/                        # Playwright E2E spec
+```
+
+---
+
+## Known Limitations
+
+- **Email receipt forwarding** is scaffolded (`email-receipt-parser.ts`) but not implemented.
+- **Render cold starts** add 30–60s latency after inactivity periods.
+- **No real-time updates** — dashboard data requires page refresh or navigation.
+- **File Handlers / Launch Queue** are Chromium desktop-only.
+- **Background Sync** is Chromium-only; other browsers use manual retry UI.
+- **CSP** uses `'unsafe-inline'` for scripts — required by Next.js inline script injection; nonce-based CSP is a future improvement.
+
+---
+
+## Full Documentation
+
+See **[DOCUMENTATION.md](./DOCUMENTATION.md)** for the complete technical reference including database schema, API inventory, security model, PWA architecture details, and deployment guide.
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

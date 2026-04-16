@@ -96,17 +96,17 @@ export function Navbar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/60 backdrop-blur-xl animate-fade-down">
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <nav className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:h-16 sm:px-6 lg:px-8">
         {/* Logo */}
-        <Link href="/" className="group flex items-center gap-2 text-lg font-bold">
+        <Link href="/" className="group flex shrink-0 items-center gap-2 text-lg font-bold">
           <Image
             src="/minimal_optimized_for_favicon.png"
             alt="ExpenseVision logo"
-            width={50}
-            height={50}
-            className="transition-transform duration-300 group-hover:scale-110"
+            width={40}
+            height={40}
+            className="sm:h-[50px] sm:w-[50px] transition-transform duration-300 group-hover:scale-110"
           />
-          <span>ExpenseVision</span>
+          <span className="text-base sm:text-lg">ExpenseVision</span>
         </Link>
 
         {/* Desktop Nav */}

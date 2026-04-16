@@ -188,37 +188,37 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {!isImmersiveCapture && (
-          <header className="flex h-16 items-center justify-between border-b border-border bg-card/50 px-4 backdrop-blur-xl md:px-6">
-            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-              <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" />}>
-                <Menu className="h-5 w-5" />
-              </SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0">
-                <SheetTitle className="sr-only">Navigation</SheetTitle>
-                {renderSidebar(true)}
-              </SheetContent>
-            </Sheet>
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/50 px-3 backdrop-blur-xl sm:h-16 sm:px-4 md:px-6">
+            <div className="flex items-center gap-2">
+              <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+                <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" />}>
+                  <Menu className="h-5 w-5" />
+                </SheetTrigger>
+                <SheetContent side="left" className="w-72 p-0">
+                  <SheetTitle className="sr-only">Navigation</SheetTitle>
+                  {renderSidebar(true)}
+                </SheetContent>
+              </Sheet>
 
-            {isDemo && (
-              <div className="hidden items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent md:flex">
-                <Sparkles className="h-3 w-3" />
-                Demo Mode — Data is read-only
-              </div>
-            )}
+              {isDemo && (
+                <div className="hidden items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent sm:flex">
+                  <Sparkles className="h-3 w-3" />
+                  <span className="hidden md:inline">Demo Mode — Data is read-only</span>
+                  <span className="md:hidden">Demo</span>
+                </div>
+              )}
+            </div>
 
-            <div className="flex-1" />
-
-            <div className="flex items-center gap-3">
-              {/* Notification bell */}
+            <div className="flex items-center gap-1.5 sm:gap-3">
               {!isDemo && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="relative"
+                  className="relative h-9 w-9"
                   render={<Link href="/notifications" />}
                   aria-label="Notifications"
                 >
-                  <Bell className="h-5 w-5" />
+                  <Bell className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
                   {unreadCount > 0 && (
                     <Badge
                       variant="destructive"
@@ -233,22 +233,25 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
               <ThemeToggle />
 
               {isDemo ? (
-                <Button size="sm" render={<Link href="/signup" />}>Sign Up Free</Button>
+                <Button size="sm" render={<Link href="/signup" />}>
+                  <span className="hidden sm:inline">Sign Up Free</span>
+                  <span className="sm:hidden">Sign Up</span>
+                </Button>
               ) : (
               <DropdownMenu>
-                <DropdownMenuTrigger render={<Button variant="ghost" className="flex items-center gap-2 px-2" />}>
-                    <Avatar className="h-8 w-8">
+                <DropdownMenuTrigger render={<Button variant="ghost" className="flex items-center gap-1.5 px-1.5 sm:gap-2 sm:px-2" />}>
+                    <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
                       {user?.avatar_url && (
                         <AvatarImage src={user.avatar_url} alt={displayName} />
                       )}
-                      <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                      <AvatarFallback className="bg-primary/10 text-[10px] text-primary sm:text-xs">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="hidden text-sm font-medium sm:block">
+                    <span className="hidden text-sm font-medium sm:block max-w-[120px] truncate">
                       {displayName}
                     </span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 border border-border bg-popover shadow-xl">
                   <DropdownMenuItem render={<Link href="/settings" />} className="cursor-pointer py-2 px-3">

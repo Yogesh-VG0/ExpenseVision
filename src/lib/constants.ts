@@ -11,18 +11,6 @@ export const MAX_USERNAME_LENGTH = 30;
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 export const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"];
 
-export const CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
-
-export function createCurrencyFormatter(currency: string) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-  });
-}
-
 export const DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   month: "short",

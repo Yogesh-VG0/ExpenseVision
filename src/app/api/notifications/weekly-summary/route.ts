@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { notificationMutationRateLimit } from "@/lib/redis";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import { sendPushToUser, isPushConfigured } from "@/lib/push-sender";
 
 /**
  * POST — generate a weekly spending summary notification.
@@ -72,15 +73,25 @@ export async function POST() {
         ? "No expenses recorded this week. Great job keeping track!"
         : `You spent a total of ${total.toFixed(2)} across ${count} expense${count === 1 ? "" : "s"} this week.${topCategory ? ` Top category: ${topCategory[0]} (${topCategory[1].toFixed(2)}).` : ""}`;
 
+    const title = "Your weekly spending summary";
+
     const { error } = await supabase.from("notifications").insert({
       user_id: user.id,
       type: "weekly_summary",
-      title: "Your weekly spending summary",
+      title,
       body,
       data: { total, count, byCategory, startDate, endDate },
     });
 
     if (error) throw error;
+
+    if (isPushConfigured()) {
+      sendPushToUser(supabase, user.id, {
+        title,
+        body,
+        tag: `weekly-summary-${endDate}`,
+      }).catch((err) => console.error("Push delivery for weekly summary failed:", err));
+    }
 
     return NextResponse.json({ success: true, total, count });
   } catch (error) {

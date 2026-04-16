@@ -7,6 +7,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { sendPushToUser, isPushConfigured } from "@/lib/push-sender";
 
 type ServerSupabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -86,11 +87,14 @@ export async function checkBudgetAlerts(
       .maybeSingle();
 
     if (!existing) {
+      const title = `${expenseCategory} budget exceeded`;
+      const body = `You've spent ${Math.round(percentage)}% of your ${expenseCategory} budget this month. Consider reviewing recent expenses.`;
+
       await supabase.from("notifications").insert({
         user_id: userId,
         type: "budget_exceeded",
-        title: `${expenseCategory} budget exceeded`,
-        body: `You've spent ${Math.round(percentage)}% of your ${expenseCategory} budget this month. Consider reviewing recent expenses.`,
+        title,
+        body,
         data: {
           category: expenseCategory,
           spent: totalSpent,
@@ -99,6 +103,14 @@ export async function checkBudgetAlerts(
           month: monthKey,
         },
       });
+
+      if (isPushConfigured()) {
+        sendPushToUser(supabase, userId, {
+          title,
+          body,
+          tag: `budget-exceeded-${expenseCategory}-${monthKey}`,
+        }).catch((err) => console.error("Push delivery failed:", err));
+      }
 
       alerts.push({
         category: expenseCategory,
@@ -119,11 +131,14 @@ export async function checkBudgetAlerts(
       .maybeSingle();
 
     if (!existing) {
+      const title = `${expenseCategory} budget at ${Math.round(percentage)}%`;
+      const body = `You're approaching your ${expenseCategory} budget limit. ${Math.round(Number(budget.monthly_limit) - totalSpent)} remaining this month.`;
+
       await supabase.from("notifications").insert({
         user_id: userId,
         type: "budget_warning",
-        title: `${expenseCategory} budget at ${Math.round(percentage)}%`,
-        body: `You're approaching your ${expenseCategory} budget limit. ${Math.round(Number(budget.monthly_limit) - totalSpent)} remaining this month.`,
+        title,
+        body,
         data: {
           category: expenseCategory,
           spent: totalSpent,
@@ -132,6 +147,14 @@ export async function checkBudgetAlerts(
           month: monthKey,
         },
       });
+
+      if (isPushConfigured()) {
+        sendPushToUser(supabase, userId, {
+          title,
+          body,
+          tag: `budget-warning-${expenseCategory}-${monthKey}`,
+        }).catch((err) => console.error("Push delivery failed:", err));
+      }
 
       alerts.push({
         category: expenseCategory,

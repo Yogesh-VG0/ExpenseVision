@@ -61,7 +61,7 @@ export function HowItWorks() {
             <div key={item.step} className="group relative text-center animate-fade-up" style={{ animationDelay: `${300 + index * 150}ms` }}>
               {/* Connector line */}
               {index < steps.length - 1 && (
-                <div className="absolute top-12 left-1/2 hidden h-px w-full bg-gradient-to-r from-primary/30 via-border to-transparent lg:block" />
+                <div className="absolute top-12 left-1/2 hidden h-px w-[calc(100%-1rem)] bg-gradient-to-r from-primary/30 via-border to-transparent lg:block" />
               )}
 
               {/* Icon Circle */}

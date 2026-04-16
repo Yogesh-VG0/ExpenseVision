@@ -30,8 +30,8 @@ export function Hero() {
 
   return (
     <section className="relative pt-32 pb-16 sm:pt-40 sm:pb-20">
-      {/* Animated Background Effects — no overflow-hidden so blobs bleed into stats */}
-      <div className="pointer-events-none absolute -inset-x-0 -top-0 -bottom-32 overflow-visible">
+      {/* Animated Background Effects — clip-x but allow vertical bleed into stats */}
+      <div className="pointer-events-none absolute -inset-x-0 -top-0 -bottom-32 overflow-x-clip overflow-y-visible">
         <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-primary/15 blur-[100px] animate-float" />
         <div className="absolute -bottom-20 -left-32 h-[600px] w-[600px] rounded-full bg-accent/15 blur-[120px] animate-float" style={{ animationDelay: "3s" }} />
         <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px] animate-pulse-glow" />

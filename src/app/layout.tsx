@@ -91,9 +91,9 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`dark ${dmSans.variable} ${jetBrainsMono.variable} h-full antialiased`}
+      className={`dark ${dmSans.variable} ${jetBrainsMono.variable} h-full antialiased overflow-x-hidden`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col overflow-x-hidden">
         <ThemeProvider defaultTheme="dark">
           <PWAProvider>
             {children}
