@@ -1,7 +1,7 @@
 # ExpenseVision — Technical Documentation
 
 > **Single source of truth** for the entire ExpenseVision codebase.
-> Last updated from exhaustive repository audit, April 2026.
+> Last updated to match the repo (OCR pipeline, receipt review UI, CSP, env vars), April 2026.
 
 ---
 
@@ -64,7 +64,7 @@ ExpenseVision is a personal finance web application that combines manual expense
 - **Server-first rendering** — pages use Next.js server components for initial data fetch, hydrating into client components for interactivity
 - **Supabase as the entire backend** — auth, database, storage, and RLS policies eliminate the need for a custom backend
 - **Progressive enhancement** — PWA features (Background Sync, Share Target, File Handlers) are additive; the app works without them
-- **AI with graceful degradation** — primary Gemini provider falls back to OpenRouter free models; manual entry is always available if both fail
+- **AI with graceful degradation** — receipt OCR tries **Veryfi** (when configured), then **Gemini**, then **OpenRouter**; AI insights use Gemini with OpenRouter fallback; manual entry is always available if OCR fails
 - **Rate-limited by default** — every mutation endpoint is rate-limited even on free tier infrastructure
 
 ---
@@ -104,16 +104,16 @@ ExpenseVision is a personal finance web application that combines manual expense
                                         │
           ┌─────────────────────────────┼──────────────────┐
           ▼                             ▼                   ▼
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐
-│   Supabase       │  │   AI Providers    │  │ Upstash Redis│
-│                  │  │                    │  │              │
-│ ● Auth           │  │ ● Google Gemini    │  │ ● Rate limits│
-│ ● PostgreSQL     │  │   2.5 Flash        │  │   (sliding   │
-│   (RLS-enforced) │  │                    │  │    window)   │
-│ ● Storage        │  │ ● OpenRouter       │  │              │
-│   (receipts      │  │   (fallback)       │  │              │
-│    bucket)       │  │                    │  │              │
-└──────────────────┘  └──────────────────┘  └──────────────┘
+┌──────────────────┐  ┌──────────────────────────────┐  ┌──────────────┐
+│   Supabase       │  │   OCR + AI providers        │  │ Upstash Redis│
+│                  │  │                              │  │              │
+│ ● Auth           │  │ ● Veryfi (optional OCR)      │  │ ● Rate limits│
+│ ● PostgreSQL     │  │ ● Google Gemini 2.5 Flash   │  │   (sliding   │
+│   (RLS-enforced) │  │   (+ Flash Lite for OCR)    │  │    window)   │
+│ ● Storage        │  │ ● OpenRouter (OCR + insights │  │              │
+│   (receipts      │  │   fallbacks, free VL models) │  │              │
+│    bucket)       │  │                              │  │              │
+└──────────────────┘  └──────────────────────────────┘  └──────────────┘
 ```
 
 ### Request Flow
@@ -158,7 +158,7 @@ ExpenseVision/
 │   └── run-standalone.mjs         # Production standalone server launcher
 ├── src/
 │   ├── app/
-│   │   ├── api/                   # 11 API domains, 17 route files
+│   │   ├── api/                   # 12 API domains, 17 route handler files
 │   │   │   ├── account/route.ts
 │   │   │   ├── ai-insights/route.ts
 │   │   │   ├── analytics/route.ts
@@ -174,6 +174,8 @@ ExpenseVision/
 │   │   │   │   ├── route.ts           # GET, PATCH
 │   │   │   │   ├── subscribe/route.ts # POST, DELETE
 │   │   │   │   └── weekly-summary/route.ts # POST
+│   │   │   ├── cron/
+│   │   │   │   └── weekly-summary/route.ts  # POST, Bearer CRON_SECRET
 │   │   │   ├── ocr/route.ts
 │   │   │   ├── receipts/access/route.ts
 │   │   │   ├── telemetry/route.ts
@@ -234,6 +236,8 @@ ExpenseVision/
 │   │   ├── offline-queue.ts       # IndexedDB offline expense queue
 │   │   ├── offline-retry.ts       # Offline retry + Background Sync
 │   │   ├── push-subscription.ts   # Web Push subscription helpers
+│   │   ├── push-sender.ts         # Server-side web-push delivery
+│   │   ├── receipt-records.ts     # Persist receipt OCR metadata to DB
 │   │   ├── telemetry.ts           # Lightweight event tracking
 │   │   ├── demo-data.ts           # Demo mode sample data
 │   │   ├── constants.ts           # App-wide constants + formatters
@@ -250,7 +254,8 @@ ExpenseVision/
 │       ├── 003_add_profiles_insert_policy.sql
 │       ├── 004_add_idempotency_key.sql
 │       ├── 005_notifications_table.sql
-│       └── 006_push_subscriptions.sql
+│       ├── 006_push_subscriptions.sql
+│       └── 007_budget_unique_constraint.sql
 ├── .env.example                   # Environment variable template
 ├── .gitignore
 ├── components.json                # shadcn/ui config
@@ -313,11 +318,12 @@ ExpenseVision/
 | `PUT` | `/api/budgets/[id]` | Yes | `budgetMutationRateLimit` | Update budget |
 | `DELETE` | `/api/budgets/[id]` | Yes | `budgetMutationRateLimit` | Delete budget |
 | `POST` | `/api/receipts/access` | Yes | `apiRateLimit` | Refresh signed URL for stored receipt |
-| `GET` | `/api/notifications` | Yes | `notificationMutationRateLimit` | List user notifications |
+| `GET` | `/api/notifications` | Yes | None (auth only) | List user notifications (`page`, `limit`, pagination metadata) |
 | `PATCH` | `/api/notifications` | Yes | `notificationMutationRateLimit` | Mark notifications as read |
 | `POST` | `/api/notifications/subscribe` | Yes | `notificationMutationRateLimit` | Save push subscription |
 | `DELETE` | `/api/notifications/subscribe` | Yes | `notificationMutationRateLimit` | Remove push subscription |
-| `POST` | `/api/notifications/weekly-summary` | Yes | `apiRateLimit` | Generate weekly spending summary notification |
+| `POST` | `/api/notifications/weekly-summary` | Yes | `apiRateLimit` | Generate weekly spending summary notification for the signed-in user |
+| `POST` | `/api/cron/weekly-summary` | No (Bearer `CRON_SECRET`) | None | Weekly summaries for all opted-in users; invoked by Render cron in `render.yaml` |
 | `DELETE` | `/api/account` | Yes | `accountMutationRateLimit` | Delete user account + data + storage |
 | `GET` | `/api/analytics` | Yes | `apiRateLimit` | Aggregated analytics (totals, category breakdown, trends) |
 | `POST` | `/api/telemetry` | Yes | `telemetryRateLimit` | Client event ingestion |
@@ -331,8 +337,8 @@ ExpenseVision/
 
 | Component | File | Purpose |
 |---|---|---|
-| **AppShell** | `components/app-shell.tsx` | Primary authenticated layout — sidebar navigation (collapsible on desktop, sheet on mobile), header with search, user menu, theme toggle, unread notification badge, PWA install prompt, currency provider integration |
-| **ThemeProvider** | `components/theme-provider.tsx` | Wraps `next-themes` to provide dark/light/system theme switching |
+| **AppShell** | `components/app-shell.tsx` | Primary authenticated layout — fixed sidebar on `md+`, mobile sheet menu, header with notifications, theme toggle, user menu / demo CTA, optional PWA install row, `CurrencyProvider` wrapping page content |
+| **ThemeProvider** | `components/theme-provider.tsx` | React context for `light` / `dark` / `system`; reads/writes `localStorage`; applies class on `<html>`. Paired with **`ThemeInitScript`** in `layout.tsx` (inline script) so the first paint matches the saved theme and avoids hydration mismatches |
 | **PWAProvider** | `components/pwa-provider.tsx` | Service worker registration, install prompt capture (`beforeinstallprompt`), `launchQueue` consumer, telemetry for PWA install events |
 | **CurrencyProvider** | `components/currency-provider.tsx` | React context for currency formatting; auto-detects from user profile or locale/timezone; custom Dirham (`د.إ`) formatting; provides `formatCurrency(amount)` |
 | **ThemeToggle** | `components/theme-toggle.tsx` | Dropdown toggle for light/dark/system themes |
@@ -340,23 +346,24 @@ ExpenseVision/
 ### Feature Components by Domain
 
 **Receipts**
-- `ReceiptWorkspace` — The largest component (~1680 lines). Handles the entire receipt flow: camera capture, file selection, drag-and-drop, client-side compression (resizes to 1200px max, JPEG quality 0.7), preview display, OCR API call with progress states, result review form with all extracted fields, expense save with receipt linking, offline queue fallback, share target draft loading, history view with thumbnail grid, receipt deletion, and full error/retry UX.
-- `PendingUploadsSheet` — Displays offline-queued expenses with status indicators and retry/remove controls.
+- `ReceiptWorkspace` — Large client component implementing the full receipt flow: camera / library / drag-and-drop, **client-side compression** (`compressReceiptImage`), image preview or PDF placeholder, **indeterminate progress** while `POST /api/ocr` runs, OCR result review with **responsive layout** (stacked on small screens, side-by-side preview + **Expense details** on large screens), **touch-friendly** inputs, wrapped long warning/error text, **scrollable** raw OCR `<details>`, full-width **retry / recovery** actions on mobile, sticky bottom **Save expense** bar with safe-area padding in capture mode, share-target and launch-queue resume, history grid with signed URL refresh, and offline queue handoff.
+- `PendingQueuePanel` (`pending-queue.tsx`) — Lists IndexedDB-backed offline expense uploads with retry/remove controls.
 
 **Dashboard**
-- `DashboardClient` — Server-rendered page delegates to this client component for interactivity.
-- `ExpenseChart` — Recharts area chart showing daily spending over selected date range.
-- `CategoryBreakdown` — Recharts pie/donut chart with category-colored spending distribution.
-- `RecentExpenses` — Card list of latest expenses with vendor, amount, category badge.
-- `SummaryCards` — Stat cards showing total spend, average, budget usage, receipt count.
+- `DashboardClient` — Composes dashboard widgets; server page passes expenses/budgets as props.
+- `OverviewCards` — Stat cards (total spent, average per txn, budget usage %, month-over-month trend).
+- `ExpenseChart` — Recharts chart for monthly (or period) spending.
+- `CategoryBreakdown` — Donut / breakdown by category.
+- `RecentActivity` — Recent expense rows with vendor, amount, date.
+- `BudgetProgress` — Per-budget progress vs limits for the current view.
 
 **Expenses**
 - `ExpensesClient` — Full expense management: filterable/sortable table (desktop) and card list (mobile), date range picker, category filter, search, add/edit/delete with confirmation.
-- `ExpenseFormDialog` — Modal form for creating/editing expenses with Zod validation, category selector, date picker, amount input, notes field.
+- `ExpenseFormDialog` — Modal form for creating/editing expenses with Zod validation, category selector, date picker, amount input, description field.
 
 **Budgets**
 - `BudgetsClient` — Budget list with progress bars (color-coded by percentage), spent vs limit display, edit/delete.
-- `BudgetFormDialog` — Modal for creating/editing budgets with category dropdown (excludes already-budgeted categories), amount input, period selector.
+- `BudgetFormDialog` — Modal for creating/editing budgets with category dropdown (excludes already-budgeted categories) and **monthly limit** input (`monthly_limit` per `budgetSchema`).
 
 **Imports**
 - `ImportWizard` — 4-step flow: file select → column mapping → preview/validation → confirmation.
@@ -408,23 +415,23 @@ All built on `@base-ui/react` primitives with Tailwind CSS v4 styling. The proje
 
 Central type definitions for the entire application:
 
-- **`Expense`** — Core expense record with id, user_id, amount, category, vendor, date, notes, tags, receipt_url, receipt_id, idempotency_key, timestamps
-- **`Budget`** — Budget definition with id, user_id, category, amount (limit), period, timestamps; extended with `spent`, `percentage`, `remaining` at runtime
+- **`Expense`** — `id`, `user_id`, `amount`, `category`, `description`, optional `vendor`, `date`, `tags`, `is_recurring`, `receipt_url` (storage path string when attached), timestamps
+- **`Budget`** — `id`, `user_id`, `category`, `monthly_limit`, timestamps; UI layers compute `spent` / `percentage` / `remaining` from expenses
 - **`AIInsight`** — AI-generated insight with id, user_id, content (structured JSON), provider, timestamps
 - **`Profile`** — User profile with display_name, avatar_url, currency, notification_preferences
 - **`Notification`** — Notification record with id, user_id, type, title, message, read status, metadata, timestamps
 - **`PushSubscription`** — Web Push subscription with endpoint, keys, user_id, device_name
-- **`ReceiptProcessingResult`** — Full OCR result including status, receipt data, expense data, errors, warnings, recovery actions, processing metadata (duration, provider, confidence)
-- **`OCRResult`** — Extracted receipt fields: vendor, amount, date, currency, category, line_items, tax, payment_method, confidence
-- **Various enums** — NotificationType, ExpenseCategory (18 categories), BudgetPeriod, InsightStatus
+- **`ReceiptProcessingResult`** — Extends `OCRResult` with `status`, `upload_status`, `ocr_status`, `warning`, `error`, and `recovery_actions`
+- **`OCRResult`** — `amount`, `vendor`, `date`, `category`, `description`, `line_items`, `confidence`, `raw_text`, `receipt_path`
+- **Various enums** — NotificationType, `Category` (10 values in `CATEGORIES`), budget/insight helpers
 
 ### `src/lib/validations.ts`
 
 Zod v4 schemas used for both client and server validation:
 
-- **`expenseSchema`** — amount (0.01–999,999.99), vendor (max 100 chars, HTML-stripped), category (one of 18 enum values), date (not future, not before 2020), notes (optional, max 500 chars), tags (optional string array)
-- **`budgetSchema`** — category, amount (1–9,999,999.99), period (monthly/weekly/yearly)
-- **`signUpSchema`** — email (valid format), password (min 8, one upper, one lower, one digit), display_name (2–50 chars)
+- **`expenseSchema`** — amount (positive, max `MAX_EXPENSE_AMOUNT`), `category` (one of 10 `VALID_CATEGORIES`), `description` (max 500, HTML-stripped), optional `vendor` (max 200), `date` (`YYYY-MM-DD`), optional `tags`, optional `receipt_url`
+- **`budgetSchema`** — `category` (same 10 values), `monthly_limit` (positive, max `MAX_EXPENSE_AMOUNT`)
+- **`signUpSchema`** — email (valid format), password (min 8, max 128, complexity rules), `full_name` (required, max 100)
 - **`signInSchema`** — email + password (basic presence checks)
 - **`importRowSchema`** — schema for CSV-imported rows with required amount/date, optional category/vendor/notes
 
@@ -458,10 +465,10 @@ Utility function `enforceRateLimit(request, limiter, identifier?)`:
 
 Receipt file handling:
 
-- **Constants**: Max 10 MB, allowed types `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `application/pdf`
+- **Constants**: Max 10 MB; allowed types include **JPEG, PNG, WebP, GIF, HEIC/HEIF, PDF** (see `RECEIPT_ALLOWED_TYPES` in `receipts.ts`)
 - **`validateReceiptFile(file)`**: Client-side type + size check
-- **`validateMagicBytes(buffer)`**: Server-side binary signature check for JPEG (`FFD8FF`), PNG (`89504E47`), WebP (`52494646`+`57454250`), PDF (`25504446`)
-- **`buildReceiptPath(userId, fileName)`**: Generates storage path `{userId}/{timestamp}-{random}-{sanitizedName}`
+- **`validateReceiptFileBytes(buffer, claimedType)`**: Server-side magic-byte validation (including HEIC/HEIF `ftyp` brands), JPEG, PNG, WebP, GIF, PDF
+- **`buildReceiptStoragePath(userId, fileName)`**: Generates storage path `{userId}/{timestamp}-{random}-{sanitizedName}`
 - **`inferMimeType(path)`**: Extension-based MIME inference
 - **`serializeReceiptDraft(file) / deserializeReceiptDraft(data)`**: Converts files to/from base64 JSON for cross-page draft passing (used by Share Target)
 
@@ -470,7 +477,7 @@ Receipt file handling:
 `createExpenseRecord(supabase, userId, data)`:
 - If `idempotency_key` is provided, checks for existing record with same user+key
 - Returns existing record if found (idempotent behavior)
-- Otherwise inserts new expense, optionally linking receipt_id
+- Otherwise inserts a new expense, optionally persisting `receipt_url`
 - Returns `{ expense, created: boolean }`
 
 ### `src/lib/budget-alerts.ts`
@@ -573,7 +580,7 @@ Application constants:
 - `MAX_EXPENSE_AMOUNT` (999,999.99)
 - `DEFAULT_CURRENCY` ("USD")
 - `DATE_FORMAT`, `DATE_TIME_FORMAT` (using `date-fns` formatters)
-- `CATEGORY_COLORS` — Maps each of the 18 expense categories to a Tailwind color class
+- `CATEGORY_COLORS` — Maps each defined expense category name to a hex color (aligned with `CATEGORIES`)
 
 ### `src/lib/utils.ts`
 
@@ -590,7 +597,7 @@ Application constants:
 
 ### `src/lib/supabase/admin.ts`
 
-`createAdminClient()`: Creates a Supabase client using the `SUPABASE_SERVICE_ROLE_KEY`. Used only in the account deletion endpoint to delete users from Supabase Auth (which requires service-role privileges). Returns `null` if the key is not configured.
+`createAdminClient()`: Creates a Supabase client using the `SUPABASE_SERVICE_ROLE_KEY`. Used for **account deletion** and the **`POST /api/cron/weekly-summary`** job (bulk reads across users). Returns `null` if the key is not configured.
 
 ---
 
@@ -629,50 +636,47 @@ Application constants:
 
 | Column | Type | Constraints |
 |---|---|---|
-| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `id` | uuid | PK |
 | `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
-| `amount` | numeric(12,2) | NOT NULL, CHECK > 0 |
-| `category` | text | NOT NULL, CHECK in [18 categories] |
+| `amount` | numeric(10,2) | NOT NULL, CHECK > 0 |
+| `category` | text | NOT NULL, CHECK against the 10 canonical category names |
 | `vendor` | text | |
+| `description` | text | |
 | `date` | date | NOT NULL |
-| `notes` | text | |
-| `tags` | text[] | |
-| `receipt_url` | text | |
-| `receipt_id` | uuid | FK → receipts(id) ON DELETE SET NULL |
-| `idempotency_key` | text | |
-| `created_at` | timestamptz | DEFAULT now() |
-| `updated_at` | timestamptz | DEFAULT now() |
+| `is_recurring` | boolean | NOT NULL, default false |
+| `receipt_url` | text | Supabase Storage object path when a receipt file is attached |
+| `tags` | text[] | NOT NULL, default `{}` |
+| `idempotency_key` | text | Optional; partial unique index with `user_id` (migration `004`) |
+| `created_at` / `updated_at` | timestamptz | Defaults + update trigger |
 
-- Partial unique index: `idx_expenses_idempotency (user_id, idempotency_key)` WHERE `idempotency_key IS NOT NULL`
-- Trigger: auto-updates `updated_at` on modification
 - RLS: Users can SELECT, INSERT, UPDATE, DELETE their own expenses (`user_id = auth.uid()`)
 
-#### Categories (18 total)
+#### Categories (10 — enforced in SQL CHECK + `src/lib/types.ts`)
 
-Food & Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Shopping, Education, Personal Care, Travel, Insurance, Gifts & Donations, Savings & Investments, Taxes, Childcare, Pets, Business, Other
+Food & Dining, Transportation, Shopping, Entertainment, Bills & Utilities, Healthcare, Education, Travel, Groceries, Other
 
 #### `budgets`
 
 | Column | Type | Constraints |
 |---|---|---|
-| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `id` | uuid | PK |
 | `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
-| `category` | text | NOT NULL, CHECK in [18 categories] |
-| `amount` | numeric(12,2) | NOT NULL, CHECK > 0 |
-| `period` | text | NOT NULL, DEFAULT 'monthly' |
+| `category` | text | NOT NULL, CHECK against the same 10 categories |
+| `monthly_limit` | numeric(10,2) | NOT NULL, CHECK > 0 |
 | `created_at` | timestamptz | DEFAULT now() |
-| `updated_at` | timestamptz | DEFAULT now() |
 
+- Unique `(user_id, category)` — enforced in SQL (`001` + hardened in `007_budget_unique_constraint.sql`)
 - RLS: Users can SELECT, INSERT, UPDATE, DELETE their own budgets
 
 #### `ai_insights`
 
 | Column | Type | Constraints |
 |---|---|---|
-| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `id` | uuid | PK |
 | `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
-| `content` | jsonb | NOT NULL |
-| `provider` | text | |
+| `insight_type` | text | NOT NULL (`spending_summary`, `savings_tip`, `budget_alert`, `trend_analysis`) |
+| `content` | text | NOT NULL (human-readable body) |
+| `data` | jsonb | Optional structured payload |
 | `created_at` | timestamptz | DEFAULT now() |
 
 - RLS: Users can SELECT, INSERT their own insights
@@ -681,13 +685,12 @@ Food & Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Sh
 
 | Column | Type | Constraints |
 |---|---|---|
-| `id` | uuid | PK, DEFAULT gen_random_uuid() |
+| `id` | uuid | PK |
 | `user_id` | uuid | NOT NULL, FK → auth.users(id) ON DELETE CASCADE |
-| `file_path` | text | NOT NULL |
-| `file_name` | text | |
-| `file_size` | integer | |
-| `mime_type` | text | |
-| `ocr_result` | jsonb | |
+| `expense_id` | uuid | Optional FK → expenses(id) ON DELETE SET NULL |
+| `file_url` | text | NOT NULL — stores the Supabase Storage path (see `persistReceiptRecord`) |
+| `ocr_data` | jsonb | Serialized OCR fields (`persistReceiptRecord`) |
+| `confidence` | numeric(5,2) | Model confidence when available |
 | `created_at` | timestamptz | DEFAULT now() |
 
 - RLS: Users can SELECT, INSERT, DELETE their own receipts
@@ -734,7 +737,8 @@ auth.users (Supabase managed)
     │
     ├── 1:N ── expenses
     │              │
-    │              └── N:1 ── receipts (optional, via receipt_id)
+    │              ├── optional `receipt_url` (storage path on the expense row)
+    │              └── 1:N ── receipts (metadata rows keyed by the same storage path in `file_url`)
     │
     ├── 1:N ── budgets
     │
@@ -748,8 +752,8 @@ auth.users (Supabase managed)
 ### Key Relationships
 
 - **User → Profile**: 1:1, created automatically via trigger on user signup. Profile stores display settings and preferences.
-- **User → Expenses**: 1:N. Each expense belongs to one user. Optional link to a receipt via `receipt_id`.
-- **Receipt → Expense**: An expense can have at most one linked receipt (`receipt_id` FK). Deleting a receipt sets `receipt_id` to NULL on linked expenses.
+- **User → Expenses**: 1:N. Each expense belongs to one user. Optional `receipt_url` stores the Supabase Storage object path for the attachment.
+- **Receipt metadata (`receipts` table)**: Rows track OCR payloads for a stored file (`file_url` matches the storage path). Optional `expense_id` can link a receipt row back to an expense when the schema is used end-to-end.
 - **User → Budgets**: 1:N. Unique index on `(user_id, category)` prevents duplicate budgets at the database level (migration 007).
 - **User → Notifications**: 1:N. Created server-side by budget alert logic and weekly summary generation.
 - **User → Push Subscriptions**: 1:N (one per device). Unique constraint on `endpoint` ensures one subscription per browser.
@@ -757,14 +761,14 @@ auth.users (Supabase managed)
 ### Cascade Behavior
 
 - Deleting a `auth.users` record cascades to: profiles, expenses, budgets, ai_insights, receipts, notifications, push_subscriptions (all via `ON DELETE CASCADE`)
-- Deleting a `receipts` record sets `receipt_id = NULL` on linked expenses (`ON DELETE SET NULL`)
+- Deleting an `expenses` row referenced by `receipts.expense_id` sets that FK to `NULL` on the receipt row (`ON DELETE SET NULL`)
 
 ### Data Integrity Notes
 
-- Unique index on `(user_id, category)` for budgets enforces one budget per category at the database level (migration 007)
-- Pagination available on expense and notification list API endpoints (`page` + `limit` query params)
-- `expenses.amount` has CHECK > 0 and type numeric(12,2)
-- `budgets.amount` has CHECK > 0
+- Unique `(user_id, category)` on budgets enforces one row per category (see migrations `001` / `007`)
+- Pagination on `GET /api/expenses` and `GET /api/notifications` (`page` + `limit` + `pagination` metadata)
+- `expenses.amount` is `numeric(10,2)` with CHECK > 0
+- `budgets.monthly_limit` is `numeric(10,2)` with CHECK > 0
 
 ---
 
@@ -867,9 +871,9 @@ Supabase Auth with three methods:
 ```
 Upload → Store in Supabase Storage → Insert receipts row
     → OCR processing → Update receipts.ocr_result
-    → Link to expense (set expenses.receipt_id)
-    → View via signed URL
-    → Delete receipt: remove from storage + delete receipts row + null out expense.receipt_id
+    → Link to expense (`expenses.receipt_url` stores the object path; `receipts` row stores OCR JSON keyed by `file_url`)
+    → View via signed URL (`/api/receipts/access`)
+    → Delete receipt: remove from storage + delete `receipts` row + clear `expenses.receipt_url` as part of app flows
 ```
 
 ### Security Considerations
@@ -885,97 +889,62 @@ Upload → Store in Supabase Storage → Insert receipts row
 
 ## 11. Receipt Ingestion and OCR Lifecycle
 
-### End-to-End Flow
+### End-to-end flow
 
-1. **Capture**: User takes photo via camera, selects file, drags/drops, or shares from another app
-2. **Client Compression**: For images (not PDFs), the client resizes to max 1200px width and converts to JPEG at 0.7 quality to reduce upload size
-3. **Upload**: File sent as `multipart/form-data` to `POST /api/ocr`
-4. **Server Validation**: MIME type check, size check (10 MB), magic byte validation
-5. **Storage**: Uploaded to Supabase Storage `receipts` bucket with unique path
-6. **Receipt Record**: Metadata saved to `receipts` table
-7. **AI Processing**: File downloaded from storage and sent to AI provider
+1. **Capture** — Camera, file picker, drag-and-drop, Share Target, or File Handlers / launch queue (see [Section 18](#18-pwa-architecture)).
+2. **Client compression** — `compressReceiptImage` may shrink large photos before upload (`receipt-capture.ts`).
+3. **`POST /api/ocr`** — Accepts either a `file` **or** a stored `receipt_path` (retry/share flows).
+4. **Validation** — `validateReceiptFile` + `validateReceiptFileBytes` (MIME + magic bytes, including HEIC/HEIF).
+5. **Storage** — New uploads go to the private `receipts` bucket under `buildReceiptStoragePath`; metadata persisted via `persistReceiptRecord`.
+6. **OCR providers (sequential)** — See below; first successful structured result wins.
+7. **Refinement** — `refineOCRResult` adjusts confidence and **merges human-readable warnings** (suspicious merchant, missing amount/date, discount/offer language in `raw_text`).
+8. **Response** — `ReceiptProcessingResult` JSON drives the review UI; user can **save manually** even when `ocr_status` is `failed` but the file uploaded.
 
-### AI OCR Processing
+### OCR provider stack (`src/app/api/ocr/route.ts`)
 
-**Primary Provider: Google Gemini 2.5 Flash**
+| Order | Provider | When used | Notes |
+|---:|---|---|---|
+| 1 | **Veryfi** | `VERYFI_CLIENT_ID`, `VERYFI_API_KEY`, and `VERYFI_USERNAME` are all set | `POST https://api.veryfi.com/api/v8/partner/documents` with `file_data` as a data URL; response normalized to `OCRResult` via `parseVeryfiResponse`. |
+| 2 | **Google Gemini** | Veryfi did not return a usable result and `GEMINI_API_KEY` is set | Tries `gemini-2.5-flash` then `gemini-2.5-flash-lite`, **one request per model** (no inner retry loop). Non-429 HTTP errors move to the next model; 429 errors are recorded and the loop continues so OpenRouter can still run. |
+| 3 | **OpenRouter** | Still no result and `OPENROUTER_API_KEY` is set | Tries each of `nvidia/nemotron-nano-12b-v2-vl:free` and `google/gemma-4-26b-a4b-it:free` **once**; message content may be string or array — `extractTextContent` normalizes. |
 
-The server sends the image as base64 inline data to Gemini with a detailed system prompt:
+If **none** of the three credential groups is configured, the route returns **503** with a clear configuration error.
 
-```
-You are a receipt OCR specialist. Extract structured data from this receipt image.
-Return a JSON object with these fields:
-- vendor: string (the store/business name)
-- amount: number (total amount paid)
-- date: string (YYYY-MM-DD format)
-- currency: string (3-letter code like USD, EUR)
-- category: string (one of the 18 defined categories)
-- line_items: array of { description, quantity, unit_price, total }
-- tax: number (tax amount if visible)
-- payment_method: string (cash, credit, debit, etc.)
-- confidence: number (0-1, your confidence in the extraction)
+### Parsing and robustness
 
-If a field is not visible or unclear, omit it rather than guessing.
-For ambiguous amounts, prefer the total/grand total over subtotals.
-```
+- **JSON from models** — Strips code fences, extracts JSON objects embedded in prose, reads nested `text` / `content` shapes from Gemini/OpenRouter payloads.
+- **Numbers** — `coerceNumber` accepts string amounts with mixed `,` / `.` thousands separators.
+- **Dates** — `coerceDate` accepts `YYYY-MM-DD`, ISO date-times, `MM/DD/YYYY`, `DD/MM/YYYY`, and several written formats.
+- **Categories** — `sanitizeCategory` maps model output onto the **10** app categories; unknown values become `null`.
 
-**Fallback Provider: OpenRouter (free models)**
+### `ReceiptProcessingResult` (client contract)
 
-If Gemini fails or is not configured, the same prompt is sent to OpenRouter's free tier models (the specific model varies — OpenRouter routes to available free models). The image is sent as a base64 data URL in the message content.
+Key fields used by `ReceiptWorkspace`: `status` (`success` \| `partial` \| `error`), `upload_status`, `ocr_status`, `receipt_path`, `amount`, `vendor`, `date`, `category`, `description`, `line_items`, `confidence`, `raw_text`, optional **`warning`** and **`error`** strings, and **`recovery_actions`** (`retry_ocr`, `retry_upload`, `save_manually`).
 
-### Response Parsing
+### Failure copy (upload vs OCR)
 
-1. AI response text is cleaned (strip markdown code fences if present)
-2. Parsed as JSON
-3. Validated against expected field structure
-4. Missing fields default to `null`/`undefined`
-5. If JSON parsing fails entirely, the response is treated as an error with a recovery action offering manual entry
+- If the file **is already stored** but every OCR provider fails, the API returns **`partial`** with an **error** explaining that the **receipt is attached** and the user should **retry OCR** or **edit manually** (rate-limit vs generic message).
+- If **upload and OCR** both fail, the response is **`error`** / **502** with **`retry_upload`** in recovery actions when applicable.
 
-### Result Structure
+### Receipt review UI (`ReceiptWorkspace`)
 
-The `ReceiptProcessingResult` returned to the client includes:
-
-- `status`: "success" | "partial" | "error"
-- `receipt`: Receipt record metadata
-- `expense_data`: Extracted expense fields (pre-populated for the form)
-- `ocr_result`: Raw OCR extraction with all fields + confidence
-- `errors`: Array of error messages
-- `warnings`: Array of warnings (e.g., "Low confidence extraction")
-- `recovery_actions`: Suggested actions on failure (e.g., "retry_ocr", "manual_entry")
-- `processing_metadata`: Duration in ms, provider used, model, confidence
-
-### UX During Processing
-
-1. **Uploading**: Progress indicator with "Uploading receipt..."
-2. **Processing**: Animated state with "Analyzing receipt with AI..." and estimated time
-3. **Success**: Form populated with extracted data, confidence badge, user can review/edit all fields
-4. **Partial**: Form populated with available data, warnings shown for low-confidence or missing fields
-5. **Error**: Error message displayed with recovery actions (retry, manual entry)
-
-### Failure Handling
-
-| Failure | Behavior |
-|---|---|
-| No AI key configured | Returns error with message suggesting manual entry |
-| Gemini API error | Falls back to OpenRouter |
-| OpenRouter API error | Returns error with retry + manual entry options |
-| JSON parse failure | Returns error; raw text logged |
-| Low confidence (< 0.5) | Returns "partial" status with warnings |
-| Timeout | Network timeout handled by fetch; returns error |
+Mobile-first improvements: header stacks on narrow viewports; preview + form **stack** on small screens and sit **side-by-side** on `lg+`; preview height capped to reduce overflow; alerts use **light- and dark-mode-safe** amber text; long OCR / warning / error text **wraps**; recovery buttons **stack / full-width** on small screens; raw OCR lives in a **max-height scroll** region; receipt viewer **dialog** scrolls within the viewport; sticky save bar respects **safe-area** in capture mode.
 
 ---
 
 ## 12. AI Integrations
 
-### Providers
+### Providers (summary)
 
-| Provider | Used For | Model | API Type |
+| Provider | Receipt OCR | AI insights (`/api/ai-insights`) | Transport |
 |---|---|---|---|
-| Google Gemini | OCR (primary), Insights (primary) | gemini-2.5-flash (free tier) | Direct REST API |
-| OpenRouter | OCR (fallback), Insights (fallback) | Free-tier models (auto-routed) | OpenAI-compatible REST API |
+| **Veryfi** | Optional first stage (partner REST API) | — | Server-side `fetch` from `ocr/route.ts` |
+| **Google Gemini** | Fallback OCR + primary/fallback insights | Yes | `generativelanguage.googleapis.com` |
+| **OpenRouter** | Final OCR fallback + insights fallback | Yes | `openrouter.ai` |
 
-### OCR Pipeline
+### OCR pipeline
 
-Covered in detail in [Section 11](#11-receipt-ingestion-and-ocr-lifecycle).
+Detailed provider order, parsing, and failure semantics: [Section 11](#11-receipt-ingestion-and-ocr-lifecycle).
 
 ### AI Insights Pipeline
 
@@ -1034,7 +1003,7 @@ Both OCR and Insights share the `aiRateLimit`: 20 requests per 60 seconds per us
 ### Manual Creation
 
 1. User clicks "Add Expense" button → `ExpenseFormDialog` opens
-2. Fills form: amount (required), category (required, dropdown), vendor (optional), date (required, defaults to today), notes (optional), tags (optional)
+2. Fills form: amount (required), category (required, dropdown), vendor (optional), date (required, defaults to today), description (optional), tags (optional)
 3. Client-side Zod validation
 4. `POST /api/expenses` with form data
 5. Server validates, creates record via `createExpenseRecord()`, checks budget alerts
@@ -1045,7 +1014,7 @@ Both OCR and Insights share the `aiRateLimit`: 20 requests per 60 seconds per us
 1. User processes receipt through OCR (see [Section 11](#11-receipt-ingestion-and-ocr-lifecycle))
 2. OCR results pre-populate the expense form in `ReceiptWorkspace`
 3. User reviews/edits extracted fields
-4. Save triggers `POST /api/expenses` with `receipt_id` linking to the stored receipt
+4. Save triggers `POST /api/expenses` with `receipt_url` set to the Supabase storage path returned from OCR (when upload succeeded)
 
 ### Editing
 
@@ -1058,7 +1027,7 @@ Both OCR and Insights share the `aiRateLimit`: 20 requests per 60 seconds per us
 
 1. User clicks delete → confirmation dialog
 2. `DELETE /api/expenses/[id]` removes the record
-3. If expense had a linked receipt, the receipt_id association is cleared
+3. If the expense referenced a receipt path, client/API flows clear `receipt_url` / storage as applicable
 
 ### Offline Creation
 
@@ -1070,9 +1039,9 @@ Both OCR and Insights share the `aiRateLimit`: 20 requests per 60 seconds per us
 
 ### Categorization
 
-18 fixed categories: Food & Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Shopping, Education, Personal Care, Travel, Insurance, Gifts & Donations, Savings & Investments, Taxes, Childcare, Pets, Business, Other.
+Ten fixed categories (see `CATEGORIES` in `src/lib/types.ts`): Food & Dining, Transportation, Shopping, Entertainment, Bills & Utilities, Healthcare, Education, Travel, Groceries, Other.
 
-Each category has an assigned color in `CATEGORY_COLORS` for consistent UI representation.
+Colors come from `CATEGORY_COLORS` in `constants.ts` (hex) and from each `CATEGORIES` entry’s `color` field where used in UI.
 
 ---
 
@@ -1081,7 +1050,7 @@ Each category has an assigned color in `CATEGORY_COLORS` for consistent UI repre
 ### Budget Creation
 
 1. User clicks "Add Budget" on budgets page
-2. `BudgetFormDialog` shows category dropdown (filtered to exclude categories that already have a budget), amount input, period selector (monthly/weekly/yearly — monthly is default)
+2. `BudgetFormDialog` shows category dropdown (filtered to exclude categories that already have a budget) and monthly limit amount
 3. `POST /api/budgets` — server checks for existing budget with same user+category (application-level uniqueness)
 4. On success, budget appears in list
 
@@ -1358,7 +1327,7 @@ Generated dynamically by `src/app/manifest.ts`:
 - **File Handlers**: Chromium desktop-only. Not supported on mobile or non-Chromium browsers.
 - **Launch Queue**: Chromium-only. Other browsers ignore `launchQueue.setConsumer()`.
 - **Share Target**: Works on Android Chrome and other browsers with Share API support. Limited on iOS Safari.
-- **Push Notifications**: Browser support is broad, but **server-side delivery is not implemented** (see [Section 16](#16-notifications-system)).
+- **Push Notifications**: Browser support varies by platform; **server-side delivery** is implemented via `web-push` when VAPID keys are set (see [Section 16](#16-notifications-system)).
 - **Service Worker**: Registered in production only; development uses hot module replacement.
 
 ---
@@ -1381,7 +1350,7 @@ All rate limiters use `Ratelimit.slidingWindow` from `@upstash/ratelimit`:
 | `expenseMutationRateLimit` | 30 req | 60 sec | `/api/expenses` POST/PUT/DELETE, `/api/expenses/[id]/receipt` DELETE |
 | `importBatchRateLimit` | 10 req | 60 sec | `/api/expenses/import` |
 | `budgetMutationRateLimit` | 20 req | 60 sec | `/api/budgets` POST/PUT/DELETE |
-| `notificationMutationRateLimit` | 30 req | 60 sec | `/api/notifications` GET/PATCH/subscribe |
+| `notificationMutationRateLimit` | 30 req | 60 sec | `/api/notifications` PATCH, `/api/notifications/subscribe` POST/DELETE |
 | `telemetryRateLimit` | 120 req | 60 sec | `/api/telemetry` |
 | `accountMutationRateLimit` | 5 req | 3600 sec | `/api/account` DELETE |
 
@@ -1540,22 +1509,27 @@ This is necessary because Next.js standalone output doesn't include static asset
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **Yes** | Supabase anonymous/public key | Browser + server clients |
 | `NEXT_PUBLIC_APP_URL` | **Yes** | Public-facing app URL | Metadata, redirects, OAuth callbacks |
 | `SUPABASE_SERVICE_ROLE_KEY` | For account deletion | Service role key for admin operations | `src/lib/supabase/admin.ts` |
-| `GEMINI_API_KEY` | For AI features | Google Gemini API key | `/api/ocr`, `/api/ai-insights` |
-| `OPENROUTER_API_KEY` | Fallback AI | OpenRouter API key | `/api/ocr`, `/api/ai-insights` (fallback) |
+| `VERYFI_CLIENT_ID` | Optional | Veryfi partner client id | `/api/ocr` (first-stage OCR) |
+| `VERYFI_API_KEY` | Optional | Veryfi API key | `/api/ocr` |
+| `VERYFI_USERNAME` | Optional | Veryfi username (API auth header) | `/api/ocr` |
+| `GEMINI_API_KEY` | Strongly recommended | Google Gemini API key | `/api/ocr` (fallback), `/api/ai-insights` |
+| `OPENROUTER_API_KEY` | Optional | OpenRouter API key | `/api/ocr` (final fallback), `/api/ai-insights` (fallback) |
 | `UPSTASH_REDIS_REST_URL` | Optional | Upstash Redis REST URL | `src/lib/redis.ts` |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis auth token | `src/lib/redis.ts` |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Optional | VAPID public key for push | Push subscription client-side |
-| `VAPID_PRIVATE_KEY` | Optional | VAPID private key | Push notification sending (not currently used) |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Optional | VAPID public key | Browser push subscription + `web-push` on server |
+| `VAPID_PRIVATE_KEY` | Optional | VAPID private key | `src/lib/push-sender.ts` (server push delivery) |
+| `CRON_SECRET` | For scheduled summaries | Shared secret for `POST /api/cron/weekly-summary` | `render.yaml` cron job |
 
 ### Behavior Without Optional Variables
 
 | Missing Variable | Effect |
 |---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | Account deletion endpoint returns error |
-| `GEMINI_API_KEY` + `OPENROUTER_API_KEY` | OCR and AI Insights return errors; manual entry still works |
-| `GEMINI_API_KEY` only | OpenRouter used as primary (may be slower/lower quality) |
+| All of `VERYFI_*`, `GEMINI_API_KEY`, and `OPENROUTER_API_KEY` | `POST /api/ocr` returns **503** (not configured) |
+| Only `GEMINI_API_KEY` or only `OPENROUTER_API_KEY` | OCR uses whichever models are available after Veryfi (if any) |
 | `UPSTASH_REDIS_*` | Rate limiting disabled; all requests pass through |
-| `VAPID keys` | Push subscription UI hidden; in-app notifications still work |
+| `VAPID_*` incomplete | Push subscribe UI may still render, but `sendPushToUser` is a no-op without keys; in-app notifications always work |
+| `CRON_SECRET` | Cron endpoint returns **503**; per-user `POST /api/notifications/weekly-summary` still works when signed in |
 
 ---
 
@@ -1634,7 +1608,7 @@ npx playwright test
 | Layer | Mechanism | Scope |
 |---|---|---|
 | **Middleware** | `src/proxy.ts` checks `supabase.auth.getUser()` | All protected routes (redirect to login) |
-| **API Routes** | Each route calls `supabase.auth.getUser()` independently | All API routes except `/api/warmup` |
+| **API Routes** | Each route calls `supabase.auth.getUser()` independently | All API routes except `/api/warmup` and `/api/cron/weekly-summary` (Bearer secret instead) |
 | **Database** | Supabase RLS policies on all tables | All data access |
 
 This three-layer approach means that even if one layer is bypassed, the others still protect data.
@@ -1644,7 +1618,7 @@ This three-layer approach means that even if one layer is bypassed, the others s
 All tables have RLS enabled with policies enforcing `user_id = auth.uid()` (or `id = auth.uid()` for profiles). This means:
 - A user can only query their own records
 - Even if an attacker obtains a valid session token, they cannot access other users' data
-- Service role client bypasses RLS — used only for account deletion
+- Service role client bypasses RLS — used for **account deletion** and **cron-driven weekly summaries** (`/api/cron/weekly-summary`)
 
 ### File Upload Security
 
@@ -1653,7 +1627,7 @@ All tables have RLS enabled with policies enforcing `user_id = auth.uid()` (or `
 | File type (client) | MIME type check against allowlist |
 | File size (client) | 10 MB limit check |
 | File type (server) | MIME type re-check |
-| Magic bytes (server) | Binary signature validation for JPEG, PNG, WebP, PDF |
+| Magic bytes (server) | Binary signature validation for JPEG, PNG, WebP, GIF, HEIC/HEIF (`ftyp` brands), PDF |
 | Storage isolation | Files stored under `{userId}/` path prefix |
 | Access control | Signed URLs with 1-hour expiry |
 
@@ -1665,13 +1639,19 @@ Configured in `next.config.ts`:
 |---|---|---|
 | `X-Content-Type-Options` | `nosniff` | Prevents MIME type sniffing |
 | `X-Frame-Options` | `DENY` | Prevents clickjacking |
-| `X-XSS-Protection` | `1; mode=block` | Legacy XSS filter (browser support varies) |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Controls referrer header |
 | `Permissions-Policy` | Camera, microphone, geolocation restricted | Limits browser API access |
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Forces HTTPS for 1 year |
 | `Content-Security-Policy` | Detailed policy | See below |
 
 ### Content Security Policy
+
+`next.config.ts` builds CSP at build time:
+
+- **`script-src`**: `'self'`, `'unsafe-inline'`, and **`'unsafe-eval'` only when `NODE_ENV !== 'production'`** — avoids Turbopack / React dev runtime breaking on `eval`, while keeping production stricter.
+- **Production** omits `'unsafe-eval'` from `script-src` (see `scriptSrc` construction in `next.config.ts`).
+
+Effective **production** shape (simplified):
 
 ```
 default-src 'self';
@@ -1687,15 +1667,15 @@ worker-src 'self';
 manifest-src 'self';
 ```
 
-**Notable**: `'unsafe-inline'` in `script-src` is required by Next.js inline script injection. `'unsafe-eval'` has been removed. Nonce-based CSP is a future improvement tracked in known limitations.
+**Notable**: `'unsafe-inline'` on scripts is still required for some Next.js behaviors; moving to **strict nonce-based CSP** in production remains future work. Outbound calls to **Veryfi** happen **server-side only** — browser CSP `connect-src` does not need to allow `api.veryfi.com` for OCR.
 
 ### Input Validation
 
 - All user input validated with Zod schemas before processing
 - HTML tags stripped from vendor names and text fields via regex in Zod transforms
-- Amount bounded to 0.01–999,999.99
-- Dates constrained to 2020–present, not future
-- Category values must match the defined enum
+- Amount bounded by `MAX_EXPENSE_AMOUNT` in `constants.ts` (see `expenseSchema`)
+- Date string must be `YYYY-MM-DD` (additional “not future” rules may apply in UI components)
+- Category values must be one of the **10** `VALID_CATEGORIES` in `validations.ts`
 
 ### Open Redirect Prevention
 
@@ -1710,7 +1690,7 @@ manifest-src 'self';
 |---|---|---|
 | **CSRF** | Partial | No explicit CSRF tokens; relies on SameSite cookies from Supabase |
 | **Rate limiting** | Good | All mutation routes protected; graceful degradation if Redis unavailable |
-| **Service role key** | Appropriate | Used only for account deletion (admin operation); not exposed client-side |
+| **Service role key** | Appropriate | Used for account deletion + cron weekly summaries; never shipped to the browser |
 | **Secret leakage** | Clean | `.env.example` has placeholder values; `.gitignore` excludes `.env*` files; `NEXT_PUBLIC_` prefix only on non-sensitive values |
 | **XSS** | Low risk | React's JSX escaping prevents most XSS; no `dangerouslySetInnerHTML` usage found |
 | **IDOR** | Protected | RLS prevents cross-user data access; API routes use authenticated user ID |
@@ -1755,8 +1735,8 @@ manifest-src 'self';
 ### Known Bottlenecks
 
 - **Cold start**: Render free tier spin-down adds 30–60s latency
-- **No pagination**: Expenses and notifications fetched without LIMIT/OFFSET — performance degrades with large datasets
-- **AI latency**: OCR typically takes 3–8 seconds; Insights generation can take 5–15 seconds
+- **List pagination**: `GET /api/expenses` and `GET /api/notifications` support `page` + `limit` and return `pagination` metadata; the main UI may still load a full first page server-side depending on the route.
+- **AI latency**: OCR latency depends on provider (Veryfi vs Gemini vs OpenRouter), image size, and hosting cold starts; insights can take several seconds.
 - **No connection pooling**: Each API request creates a new Supabase client (Supabase handles connection pooling server-side via pgbouncer)
 
 ---
@@ -1822,13 +1802,13 @@ The middleware matches all routes except:
 | Launch Queue | Chromium-only |
 | Share Target | Works on Android Chrome; limited on iOS Safari |
 | Camera capture | Requires HTTPS; behavior varies by OS/browser |
-| HEIC support | Not in allowed types list; only JPEG, PNG, WebP, GIF, and PDF are supported |
+| HEIC / HEIF | Supported server-side when declared as `image/heic` or `image/heif` and `ftyp` brand matches (`receipts.ts`); some browsers still lack smooth HEIC preview support |
 
 ### Known Technical Debt
 
 - `ReceiptWorkspace` component is ~1680 lines — should be decomposed into smaller components
 - No React component testing (only unit tests for utility functions)
-- CSP uses `'unsafe-inline'` for scripts (required by Next.js); `'unsafe-eval'` has been removed
+- CSP uses `'unsafe-inline'` for scripts (required by Next.js); `'unsafe-eval'` is **development-only** (see `next.config.ts`)
 - No connection to external monitoring/alerting services
 - Demo data is hardcoded rather than generated from a seed file
 - No database migrations for test seeding
@@ -1849,7 +1829,7 @@ The middleware matches all routes except:
 
 1. **Component decomposition**: Break `ReceiptWorkspace` (~1680 lines) into focused sub-components (CapturePanel, OCRResultReview, HistoryGrid, etc.)
 2. **React component tests**: Add Vitest + React Testing Library for component-level testing
-3. **CSP hardening**: Replace `'unsafe-inline'` with nonce-based script loading in production
+3. **CSP hardening**: Replace `'unsafe-inline'` with nonce-based script loading in production (and remove dev-only `'unsafe-eval'` dependency by aligning Turbopack config if possible)
 4. **Error tracking**: Integrate Sentry or similar for production error monitoring
 5. **Real-time updates**: Use Supabase Realtime subscriptions for live dashboard updates and notification push
 6. **Recurring expenses**: Allow users to define recurring expenses that auto-create entries
@@ -1897,28 +1877,28 @@ The middleware matches all routes except:
 - Auth flows (login, signup) functional
 - Dashboard loads with real data for authenticated users
 - Demo mode accessible at `/demo` without authentication
-- Receipt scanning workflow processes images through Gemini OCR
+- Receipt OCR pipeline in `src/app/api/ocr/route.ts`: **Veryfi → Gemini → OpenRouter** with resilient parsing and post-processing warnings
 - Budget progress bars update when expenses are added
-- Notifications appear in the notification center
+- Notifications appear in the notification center; **web-push** delivery runs when VAPID keys are configured
 - PWA manifest served correctly; app is installable on Chromium
 
 ### Potential Discrepancies
 
 | Area | Observation |
 |---|---|
-| **Push notifications** | Subscription UI visible in settings, but no push messages are actually delivered because server-side sending is not implemented |
-| **Weekly summary** | The notification type exists but there is no automated trigger — users would not receive weekly summaries unless something external calls the endpoint |
-| **Email receipt parsing** | Listed in some code comments as a feature direction but the implementation is a non-functional stub |
-| **Cold start** | On Render free tier, first visit after inactivity shows significant loading delay (30–60s) — this is infrastructure behavior, not a code issue |
+| **Push notifications** | Delivery requires correct VAPID env vars **and** user permission; otherwise only in-app notifications fire |
+| **Weekly summary (bulk)** | Requires `CRON_SECRET` + Render cron hitting `POST /api/cron/weekly-summary`; per-user `POST /api/notifications/weekly-summary` still works when signed in |
+| **Email receipt parsing** | `email-receipt-parser.ts` remains a stub — not wired to any transport |
+| **Cold start** | On Render free tier, first visit after inactivity shows significant loading delay (30–60s) — infrastructure behavior |
 
 ### Routes in Code but Potentially Not Discoverable
 
-- `/receipts/share-target` — only accessible via OS-level share action, not linked from within the app
-- `/receipts/capture` — only accessible via OS-level file handler, not linked from within the app
+- `/receipts/share-target` — primarily reached via OS share sheet (see manifest `share_target`)
+- `/receipts/capture` — immersive capture + File Handlers / launch queue entry
 - `/api/warmup` — health check endpoint, not user-facing
 - `/api/telemetry` — internal event ingestion, not user-facing
-- `/api/notifications/weekly-summary` — designed for cron but no trigger configured
+- `/api/cron/weekly-summary` — Bearer-authenticated cron entrypoint (see `render.yaml`)
 
 ---
 
-*This document was generated from an exhaustive audit of the entire ExpenseVision repository. Every claim is grounded in actual code review. Features labeled as partial or not implemented have been verified against the actual source code.*
+*This document is maintained to reflect the checked-in source of truth. When behavior depends on environment variables (Veryfi, Gemini, OpenRouter, VAPID, `CRON_SECRET`, Redis), production configuration may differ from a minimal local `.env`.*

@@ -24,7 +24,7 @@
 
 ExpenseVision is a full-featured personal finance application that lets users track expenses, scan receipts with AI-powered OCR, set category budgets with automatic alerts, import bank CSVs, and receive AI-generated spending insights. It ships as an installable Progressive Web App with offline support, share-target integration, and push notification delivery.
 
-Built with Next.js 16 (App Router), React 19, Supabase, Google Gemini, and Tailwind CSS v4 — deployed on Render's free tier with Upstash Redis for rate limiting.
+Built with Next.js 16 (App Router), React 19, Supabase, receipt OCR (optional **Veryfi** → **Gemini** → **OpenRouter** fallbacks), Gemini/OpenRouter for AI insights, and Tailwind CSS v4 — deployed on Render's free tier with optional Upstash Redis for rate limiting.
 
 **[Try the live demo →](https://expensevision.tech/demo)**
 
@@ -58,7 +58,7 @@ Built with Next.js 16 (App Router), React 19, Supabase, Google Gemini, and Tailw
 | Category | Features |
 |---|---|
 | **Expense Tracking** | Manual entry, search/filter/sort, date range queries, category-color-coded tables, mobile-responsive card layout |
-| **AI Receipt OCR** | Camera capture, file upload, drag-and-drop; Gemini 2.5 Flash primary → OpenRouter free-tier fallback; structured extraction (amount, vendor, date, category, line items, confidence score); magic-byte validation; client-side image compression |
+| **AI Receipt OCR** | Camera capture, file upload, drag-and-drop; **Veryfi** (when `VERYFI_*` env vars are set) → else **Gemini 2.5** models → else **OpenRouter** vision models; resilient JSON parsing (strings-as-numbers, multiple date shapes, fenced JSON); post-processing warns on suspicious merchants, discounts/offers, and weak fields; magic-byte validation (JPEG/PNG/WebP/GIF/HEIC/PDF); client-side image compression; **mobile-first review UI** (stacked layout, scrollable raw OCR, full-width recovery actions) |
 | **Smart Budgets** | Per-category monthly limits, real-time progress bars, automatic 80%/100% threshold alerts with deduplication |
 | **AI Insights** | On-demand AI-powered spending analysis — summaries, savings tips, budget alerts, trend analysis; fetches real user data server-side |
 | **CSV Import** | 4-step wizard (upload → mapping → preview → import) with auto-detected column mapping, client-side validation, server-side chunked batches (50 rows/chunk), duplicate detection, category suggestion |
@@ -67,7 +67,7 @@ Built with Next.js 16 (App Router), React 19, Supabase, Google Gemini, and Tailw
 | **Multi-Currency** | Auto-detected from locale/timezone; 30+ currencies including UAE Dirham with custom font glyph; user-configurable in profile |
 | **Demo Mode** | Full read-only demo at `/demo` with 20 realistic expenses, 7 budgets, 4 AI insights — no account required |
 | **Auth** | Email/password + Google + GitHub OAuth via Supabase Auth; email confirmation; password reset; session-based middleware protection |
-| **Security** | Supabase RLS on all tables, server-side auth on all API routes, file magic-byte validation (JPEG/PNG/WebP/GIF/HEIC/PDF), Zod input validation, CSP/HSTS/X-Frame-Options headers, open-redirect prevention, rate limiting on all mutation routes |
+| **Security** | Supabase RLS on all tables, server-side auth on all API routes, file magic-byte validation (JPEG/PNG/WebP/GIF/HEIC/PDF), Zod input validation, CSP/HSTS/X-Frame-Options headers (`unsafe-eval` **only in development** for Turbopack/React), open-redirect prevention, rate limiting on mutation routes when Redis is configured |
 
 ---
 
@@ -81,7 +81,8 @@ Built with Next.js 16 (App Router), React 19, Supabase, Google Gemini, and Tailw
 | **Database** | Supabase PostgreSQL with RLS |
 | **Auth** | Supabase Auth (email/password, Google OAuth, GitHub OAuth) |
 | **Storage** | Supabase Storage (private `receipts` bucket, signed URLs) |
-| **AI / OCR** | Google Gemini 2.5 Flash (direct API) → OpenRouter free models (fallback) |
+| **Receipt OCR** | Veryfi (optional) → Gemini 2.5 Flash / Flash Lite → OpenRouter (Nemotron VL, Gemma VL free tier) |
+| **AI insights** | Google Gemini 2.5 Flash (direct) → OpenRouter (fallback) |
 | **Caching** | Upstash Redis (sliding-window rate limiting) |
 | **Charts** | Recharts |
 | **Validation** | Zod v4 |
@@ -107,8 +108,9 @@ Browser (React 19 client)
     │               │
     │               ├── Supabase PostgreSQL (RLS-protected tables)
     │               ├── Supabase Storage (private receipt bucket)
+    │               ├── Veryfi API (optional receipt OCR)
     │               ├── Google Gemini API (OCR + Insights)
-    │               ├── OpenRouter API (fallback AI)
+    │               ├── OpenRouter API (fallback OCR + insights)
     │               └── Upstash Redis (rate limiting)
     │
     ├── Service Worker (sw.js) — caching, Background Sync, Push
@@ -120,7 +122,7 @@ Browser (React 19 client)
 
 ## Key User Flows
 
-1. **Receipt → Expense**: Capture/upload receipt → client compression → server upload to Supabase Storage → OCR via Gemini/OpenRouter → review extracted fields → save expense with receipt link
+1. **Receipt → Expense**: Capture/upload receipt → client compression → server upload to Supabase Storage → OCR via Veryfi (if configured) or Gemini/OpenRouter → review extracted fields (responsive **Expense details** + attachment summary) → save expense with receipt link
 2. **Budget Alert**: Add expense → server checks category budget → creates notification at 80% or 100% threshold → badge appears in nav → notification center shows alert
 3. **CSV Import**: Select file → auto-detect columns → map/validate → chunked server import with duplicate detection → budget alerts fire per category
 4. **Offline Save**: Network fails during save → expense queued in IndexedDB → Background Sync registered → queue processes on reconnect → idempotency key prevents duplicates
@@ -134,7 +136,8 @@ Browser (React 19 client)
 
 - Node.js 20+
 - A [Supabase](https://supabase.com) project (free tier works)
-- At least one AI API key: `GEMINI_API_KEY` or `OPENROUTER_API_KEY`
+- OCR: configure **Veryfi** (`VERYFI_CLIENT_ID`, `VERYFI_API_KEY`, `VERYFI_USERNAME`) and/or **`GEMINI_API_KEY`** and/or **`OPENROUTER_API_KEY`** (at least one provider path must be available)
+- AI insights: `GEMINI_API_KEY` and/or `OPENROUTER_API_KEY` (same keys as OCR fallbacks)
 
 ### Steps
 
@@ -183,8 +186,11 @@ Open [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
 | `NEXT_PUBLIC_APP_URL` | Yes | Public app URL (e.g., `https://expensevision.tech`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | For account deletion | Supabase service role key (admin operations) |
-| `GEMINI_API_KEY` | For AI features | Google Gemini API key |
-| `OPENROUTER_API_KEY` | Fallback AI | OpenRouter API key (free models available) |
+| `VERYFI_CLIENT_ID` | Optional (receipt OCR) | Veryfi partner client id |
+| `VERYFI_API_KEY` | Optional (receipt OCR) | Veryfi API key |
+| `VERYFI_USERNAME` | Optional (receipt OCR) | Veryfi username for API auth |
+| `GEMINI_API_KEY` | For AI / OCR | Google Gemini API key |
+| `OPENROUTER_API_KEY` | Fallback AI / OCR | OpenRouter API key (free models available) |
 | `UPSTASH_REDIS_REST_URL` | Optional | Upstash Redis URL for rate limiting |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis token |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Optional | VAPID public key for push notifications |
@@ -256,10 +262,10 @@ Deployed on **Render free tier** via the included `render.yaml` Blueprint:
 - Supabase RLS enforces `user_id = auth.uid()` on all tables
 - File uploads validated by MIME type, extension, size, and magic bytes
 - Input sanitized with Zod; HTML tags stripped from user text
-- CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy headers
-- Rate limiting on all mutation routes (Upstash Redis, graceful fallback if unconfigured)
+- CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy headers (`script-src` includes `'unsafe-eval'` **only when `NODE_ENV !== 'production'`** so Turbopack/React dev tools work; production stays stricter)
+- Rate limiting on protected mutation routes when Upstash Redis is configured (graceful no-op if unset)
 - Open-redirect prevention on auth callback paths
-- Service role key used only for admin account deletion
+- Service role key used for admin account deletion and cron weekly summaries (never exposed to the client)
 
 ---
 
