@@ -127,8 +127,10 @@ export function ExpenseChart({ data, isDemo = false }: ExpenseChartProps) {
     return { max, ticks };
   }, [chartData]);
 
+  const n = chartData.length;
+
   return (
-    <Card className="border border-border bg-card/80 backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-lg">
+    <Card className="overflow-visible border border-border bg-card/80 backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-lg">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-base">Spending</CardTitle>
         {hasAnyData && (
@@ -165,7 +167,7 @@ export function ExpenseChart({ data, isDemo = false }: ExpenseChartProps) {
         )}
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="overflow-visible">
         {!hasVisibleData ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/50">
@@ -195,8 +197,8 @@ export function ExpenseChart({ data, isDemo = false }: ExpenseChartProps) {
               })}
             </div>
 
-            <div className="min-w-0 space-y-3">
-              <div className="relative h-[240px] w-full min-w-0 sm:h-[260px]">
+            <div className="min-w-0 space-y-3 overflow-visible">
+              <div className="relative h-[240px] w-full min-w-0 overflow-visible sm:h-[260px]">
                 <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
                   {chartMetrics.ticks.map((tick, index) => (
                     <div
@@ -206,37 +208,54 @@ export function ExpenseChart({ data, isDemo = false }: ExpenseChartProps) {
                   ))}
                 </div>
 
-                <div className="absolute inset-0 flex items-end gap-3 sm:gap-4">
+                <div className="absolute inset-0 flex items-end gap-3 overflow-visible sm:gap-4">
                   {chartData.map((point, index) => {
                     const height = chartMetrics.max === 0 ? 0 : (point.total / chartMetrics.max) * 100;
                     const isActive = activeIndex === index;
+                    const isFirst = index === 0;
+                    const isLast = index === n - 1;
 
                     return (
-                      <div key={point.fullLabel} className="relative flex h-full min-w-0 flex-1 items-end justify-center">
-                        {isActive && point.total > 0 && (
-                          <div className="pointer-events-none absolute left-1/2 top-2 z-20 w-max max-w-[12rem] -translate-x-1/2 rounded-lg border border-border bg-card px-3 py-2 text-left shadow-lg">
-                            <p className="text-xs font-medium text-foreground">{point.fullLabel}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Spent: <span className="font-semibold text-foreground">{format(point.total)}</span>
-                            </p>
-                          </div>
-                        )}
+                      <div key={point.fullLabel} className="relative flex h-full min-w-0 flex-1 items-end justify-center overflow-visible">
+                        <div className="relative flex h-full w-full max-w-[46px] flex-col items-stretch justify-end overflow-visible">
+                          {isActive && point.total > 0 && (
+                            <div
+                              className={`pointer-events-none absolute bottom-full z-30 mb-2 w-max max-w-[min(16rem,calc(100vw-2.25rem))] rounded-lg border border-border bg-card px-3 py-2 text-left shadow-xl ${
+                                isFirst
+                                  ? "left-0"
+                                  : isLast
+                                    ? "right-0 left-auto"
+                                    : "left-1/2 -translate-x-1/2"
+                              }`}
+                            >
+                              <p className="text-xs font-medium leading-snug text-foreground">{point.fullLabel}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Spent:{" "}
+                                <span className="font-semibold tabular-nums text-foreground">
+                                  {format(point.total)}
+                                </span>
+                              </p>
+                            </div>
+                          )}
 
-                        <div
-                          role="img"
-                          aria-label={`${point.fullLabel}: ${format(point.total)}`}
-                          className={`w-full max-w-[46px] rounded-t-[10px] transition-all duration-200 ${
-                            point.total > 0
-                              ? "cursor-pointer opacity-100 hover:brightness-110"
-                              : isDemo && view === "weekly"
-                                ? "opacity-50"
-                                : "opacity-25"
-                          } ${view === "weekly" ? "bg-accent" : "bg-primary"}`}
-                          style={{ height: `${Math.max(height, point.total > 0 ? 6 : isDemo && view === "weekly" ? 4 : 0)}%` }}
-                          onMouseEnter={() => point.total > 0 && setActiveIndex(index)}
-                          onMouseLeave={() => activeIndex === index && setActiveIndex(null)}
-                          onClick={() => point.total > 0 && setActiveIndex(activeIndex === index ? null : index)}
-                        />
+                          <div
+                            role="img"
+                            aria-label={`${point.fullLabel}: ${format(point.total)}`}
+                            className={`w-full shrink-0 rounded-t-[10px] transition-all duration-200 ${
+                              point.total > 0
+                                ? "cursor-pointer opacity-100 hover:brightness-110"
+                                : isDemo && view === "weekly"
+                                  ? "opacity-50"
+                                  : "opacity-25"
+                            } ${view === "weekly" ? "bg-accent" : "bg-primary"}`}
+                            style={{
+                              height: `${Math.max(height, point.total > 0 ? 6 : isDemo && view === "weekly" ? 4 : 0)}%`,
+                            }}
+                            onMouseEnter={() => point.total > 0 && setActiveIndex(index)}
+                            onMouseLeave={() => activeIndex === index && setActiveIndex(null)}
+                            onClick={() => point.total > 0 && setActiveIndex(activeIndex === index ? null : index)}
+                          />
+                        </div>
                       </div>
                     );
                   })}

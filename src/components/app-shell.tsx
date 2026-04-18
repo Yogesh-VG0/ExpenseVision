@@ -83,8 +83,6 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   }, [fetchUnreadCount]);
 
   useEffect(() => {
-    if (isImmersiveCapture) return;
-
     const scrollContainer = mainRef.current;
     if (!scrollContainer) return;
 
@@ -123,7 +121,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
 
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [isImmersiveCapture, pathname]);
+  }, [pathname]);
 
   const displayName = user?.full_name || user?.email?.split("@")[0] || "User";
   const initials = displayName
@@ -372,7 +370,9 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
           ref={mainRef}
           className={cn(
             "flex-1 overflow-y-auto",
-            isImmersiveCapture ? "p-0" : "animate-fade-up p-4 pb-24 md:p-6 md:pb-6"
+            isImmersiveCapture
+              ? "p-0 pb-24 md:pb-0"
+              : "animate-fade-up p-4 pb-24 md:p-6 md:pb-6"
           )}
           style={isImmersiveCapture ? undefined : { animationDelay: "100ms" }}
         >
@@ -380,8 +380,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
         </main>
       </div>
 
-      {!isImmersiveCapture && (
-        <nav
+      <nav
           className={cn(
             "fixed inset-x-3 bottom-3 z-40 transition-all duration-300 ease-out md:hidden",
             mobileNavHidden
@@ -429,7 +428,6 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
             </div>
           </div>
         </nav>
-      )}
     </div>
   );
 }

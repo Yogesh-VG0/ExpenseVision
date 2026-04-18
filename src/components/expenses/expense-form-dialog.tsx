@@ -111,8 +111,8 @@ export function ExpenseFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
+      <DialogContent className="z-[70] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Expense" : "Add Expense"}</DialogTitle>
         </DialogHeader>

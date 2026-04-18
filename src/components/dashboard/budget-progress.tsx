@@ -31,7 +31,11 @@ export function BudgetProgress({ data }: BudgetProgressProps) {
           </p>
         ) : (
           <div
-            className={shouldScroll ? "max-h-[15.5rem] space-y-4 overflow-y-auto pr-2" : "space-y-4"}
+            className={
+              shouldScroll
+                ? "space-y-4 md:max-h-[15.5rem] md:overflow-y-auto md:pr-2"
+                : "space-y-4"
+            }
           >
             {budget_status.map((budget) => (
               <div key={budget.category} className="space-y-2">

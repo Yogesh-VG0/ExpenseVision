@@ -35,18 +35,18 @@ export function RecentActivity({ expenses }: RecentActivityProps) {
             {recent.map((expense) => (
               <div
                 key={expense.id}
-                className="flex items-center justify-between rounded-lg p-2 transition-colors hover:bg-muted/50"
+                className="rounded-lg p-2.5 transition-colors hover:bg-muted/50"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex gap-3">
                   <div
-                    className="h-9 w-9 rounded-lg"
+                    className="h-10 w-10 shrink-0 rounded-lg sm:h-9 sm:w-9"
                     style={{
                       backgroundColor:
                         (CATEGORY_COLORS[expense.category] || "#64748B") + "20",
                     }}
                   >
                     <div
-                      className="flex h-full w-full items-center justify-center text-xs font-bold"
+                      className="flex h-full w-full items-center justify-center text-[11px] font-bold sm:text-xs"
                       style={{
                         color:
                           CATEGORY_COLORS[expense.category] || "#64748B",
@@ -58,34 +58,41 @@ export function RecentActivity({ expenses }: RecentActivityProps) {
                         .toUpperCase()}
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">{expense.description || expense.vendor || expense.category}</p>
-                    <div className="flex items-center gap-2">
-                      {expense.vendor && (
-                        <span className="text-xs text-muted-foreground">
-                          {expense.vendor}
-                        </span>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(expense.date), {
-                          addSuffix: true,
-                        })}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="min-w-0 flex-1 text-sm font-medium leading-snug break-words">
+                        {expense.description || expense.vendor || expense.category}
+                      </p>
+                      <span className="shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">
+                        -{format(expense.amount)}
                       </span>
                     </div>
+                    <div className="mt-1.5 flex flex-col gap-1.5 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 sm:gap-y-0">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                        {expense.vendor ? (
+                          <span className="min-w-0 break-words">{expense.vendor}</span>
+                        ) : null}
+                        {expense.vendor ? (
+                          <span className="hidden text-muted-foreground/60 sm:inline" aria-hidden>
+                            ·
+                          </span>
+                        ) : null}
+                        <span className="shrink-0 whitespace-nowrap">
+                          {formatDistanceToNow(new Date(expense.date), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                      </div>
+                      {expense.is_recurring ? (
+                        <Badge
+                          variant="outline"
+                          className="w-fit shrink-0 border-accent/35 text-[10px] text-accent"
+                        >
+                          Recurring
+                        </Badge>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {expense.is_recurring && (
-                    <Badge
-                      variant="outline"
-                      className="border-accent/30 text-[10px] text-accent"
-                    >
-                      Recurring
-                    </Badge>
-                  )}
-                  <span className="text-sm font-semibold">
-                    -{format(expense.amount)}
-                  </span>
                 </div>
               </div>
             ))}
