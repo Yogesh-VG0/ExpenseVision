@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { useCurrency } from "@/components/currency-provider";
 import { CATEGORIES } from "@/lib/types";
 import type { Budget } from "@/lib/types";
@@ -96,8 +98,8 @@ export function BudgetFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
-      <DialogContent className="z-[70] border-border bg-card backdrop-blur-xl sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal>
+      <DialogContent className="max-h-[min(90dvh,32rem)] overflow-y-auto border-border bg-card backdrop-blur-xl sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
@@ -121,29 +123,65 @@ export function BudgetFormDialog({
                   className="border-border bg-muted/30"
                 />
               ) : (
-                <Select
-                  value={category}
-                  onValueChange={(val) => {
-                    setCategory(val as string);
-                    setErrors((prev) => ({ ...prev, category: undefined }));
-                  }}
-                >
-                  <SelectTrigger className="w-full border-border bg-muted/30">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent className="border-border bg-card">
-                    {availableCategories.map((cat) => (
-                      <SelectItem key={cat.name} value={cat.name}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                    {availableCategories.length === 0 && (
-                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        All categories have budgets
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
+                <>
+                  {/* Native picker on small screens avoids dialog + portaled select glitches (scrollbar, slide-up). */}
+                  <div className="relative md:hidden">
+                    <select
+                      className={cn(
+                        "h-11 w-full cursor-pointer appearance-none rounded-lg border border-border bg-muted/30 py-2 pr-10 pl-3 text-sm text-foreground shadow-sm outline-none transition-colors",
+                        "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50",
+                        "disabled:cursor-not-allowed disabled:opacity-50"
+                      )}
+                      value={category}
+                      onChange={(e) => {
+                        setCategory(e.target.value);
+                        setErrors((prev) => ({ ...prev, category: undefined }));
+                      }}
+                      disabled={availableCategories.length === 0}
+                      aria-invalid={errors.category ? true : undefined}
+                    >
+                      <option value="">Select category</option>
+                      {availableCategories.map((cat) => (
+                        <option key={cat.name} value={cat.name}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden
+                    />
+                  </div>
+                  <div className="hidden md:block">
+                    <Select
+                      value={category}
+                      onValueChange={(val) => {
+                        setCategory(val as string);
+                        setErrors((prev) => ({ ...prev, category: undefined }));
+                      }}
+                    >
+                      <SelectTrigger className="h-10 w-full border-border bg-muted/30">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent
+                        className="max-h-60 border-border bg-card"
+                        alignItemWithTrigger={false}
+                        positionerClassName="z-[100]"
+                      >
+                        {availableCategories.map((cat) => (
+                          <SelectItem key={cat.name} value={cat.name}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                        {availableCategories.length === 0 && (
+                          <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                            All categories have budgets
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
               {errors.category && (
                 <p className="text-xs text-red-500">{errors.category}</p>
