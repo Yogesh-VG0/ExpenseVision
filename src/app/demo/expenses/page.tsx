@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Plus,
@@ -12,6 +12,7 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,8 @@ import { Label } from "@/components/ui/label";
 import { useCurrency } from "@/components/currency-provider";
 import { DATE_FORMATTER, CATEGORY_COLORS } from "@/lib/constants";
 import { CATEGORIES } from "@/lib/types";
-import { DEMO_EXPENSES } from "@/lib/demo-data";
+import { getDemoExpenses } from "@/lib/demo-data";
+import { useHydrated } from "@/lib/use-hydrated";
 import type { Expense } from "@/lib/types";
 
 type SortOption = "newest" | "oldest" | "highest" | "lowest";
@@ -54,7 +56,12 @@ function showDemoToast() {
 
 export default function DemoExpensesPage() {
   const { format } = useCurrency();
-  const expenses = DEMO_EXPENSES as unknown as Expense[];
+  const hydrated = useHydrated();
+
+  const expenses = useMemo(
+    () => (hydrated ? (getDemoExpenses() as unknown as Expense[]) : []),
+    [hydrated]
+  );
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -109,6 +116,10 @@ export default function DemoExpensesPage() {
     };
   }, [filtered]);
 
+  if (!hydrated) {
+    return <div className="min-h-[60vh]" />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -116,7 +127,10 @@ export default function DemoExpensesPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
-            <Badge variant="outline" className="text-amber-400 border-amber-400/40 animate-pulse-glow">
+            <Badge
+            variant="outline"
+            className="animate-pulse-glow border-amber-600/45 text-amber-800 dark:border-amber-400/40 dark:text-amber-400"
+          >
               Demo
             </Badge>
           </div>
@@ -177,9 +191,9 @@ export default function DemoExpensesPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1 sm:max-w-[200px]">
               <Label htmlFor="demo-date-from" className="text-xs text-muted-foreground">From</Label>
-              <Input
+              <DateInput
                 id="demo-date-from"
-                type="date"
+                placeholder="dd/mm/yyyy"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="bg-muted/30 border-border/50"
@@ -187,9 +201,9 @@ export default function DemoExpensesPage() {
             </div>
             <div className="flex-1 space-y-1 sm:max-w-[200px]">
               <Label htmlFor="demo-date-to" className="text-xs text-muted-foreground">To</Label>
-              <Input
+              <DateInput
                 id="demo-date-to"
-                type="date"
+                placeholder="dd/mm/yyyy"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 className="bg-muted/30 border-border/50"

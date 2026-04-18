@@ -25,8 +25,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useCurrency } from "@/components/currency-provider";
+import { localizeCurrencyMentions } from "@/lib/localize-currency-text";
 
-import { DEMO_EXPENSES, DEMO_AI_INSIGHTS } from "@/lib/demo-data";
+import { getDemoAIInsights, getDemoExpenses } from "@/lib/demo-data";
+import { useHydrated } from "@/lib/use-hydrated";
 import type { Expense } from "@/lib/types";
 
 const DEMO_TOAST_TITLE = "Sign up for AI insights!";
@@ -58,7 +60,7 @@ const DEMO_INSIGHTS = [
     title: "Shopping Budget Warning",
     content: "Shopping spending is at 97% of your $300 budget ($289.98 spent). Consider holding off on non-essential purchases for the rest of the month.",
     icon: AlertTriangle,
-    color: "text-amber-400",
+    color: "text-amber-700 dark:text-amber-400",
     gradient: "from-amber-500/20 to-amber-500/5",
   },
   {
@@ -89,7 +91,13 @@ const DEMO_INSIGHTS = [
 
 export default function DemoInsightsPage() {
   const { format } = useCurrency();
-  const expenses = DEMO_EXPENSES as unknown as Expense[];
+  const hydrated = useHydrated();
+
+  const expenses = useMemo(
+    () => (hydrated ? (getDemoExpenses() as unknown as Expense[]) : []),
+    [hydrated]
+  );
+  const demoInsights = useMemo(() => (hydrated ? getDemoAIInsights() : []), [hydrated]);
 
   /* Quick Stats computed from demo data */
   const quickStats = useMemo(() => {
@@ -129,6 +137,10 @@ export default function DemoInsightsPage() {
     };
   }, [expenses]);
 
+  if (!hydrated) {
+    return <div className="min-h-[60vh]" />;
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
@@ -139,7 +151,10 @@ export default function DemoInsightsPage() {
               <Sparkles className="mr-2 inline-block h-8 w-8 text-accent" />
               AI Insights
             </h1>
-            <Badge variant="outline" className="text-amber-400 border-amber-400/40 animate-pulse-glow">
+            <Badge
+            variant="outline"
+            className="animate-pulse-glow border-amber-600/45 text-amber-800 dark:border-amber-400/40 dark:text-amber-400"
+          >
               Demo
             </Badge>
           </div>
@@ -285,7 +300,7 @@ export default function DemoInsightsPage() {
                   </CardHeader>
                   <CardContent className="flex-1">
                     <p className="text-sm leading-relaxed text-muted-foreground">
-                      {insight.content}
+                      {localizeCurrencyMentions(insight.content, format)}
                     </p>
                   </CardContent>
                 </Card>
@@ -314,7 +329,7 @@ export default function DemoInsightsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {DEMO_AI_INSIGHTS.map((insight) => (
+            {demoInsights.map((insight) => (
               <div
                 key={insight.id}
                 className="rounded-lg border border-accent/20 bg-accent/5 p-4"
@@ -325,7 +340,7 @@ export default function DemoInsightsPage() {
                   </Badge>
                 </div>
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  {insight.content}
+                  {localizeCurrencyMentions(insight.content, format)}
                 </p>
               </div>
             ))}

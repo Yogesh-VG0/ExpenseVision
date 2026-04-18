@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAppUrl } from "@/lib/app-url";
+import { formatCurrencyAmount, isSupportedCurrency } from "@/lib/currency";
+import { localizeCurrencyMentions } from "@/lib/localize-currency-text";
 import { createClient } from "@/lib/supabase/server";
 import { aiRateLimit } from "@/lib/redis";
 
@@ -57,7 +59,7 @@ export async function POST() {
     const now = new Date();
     const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
-    const [expensesRes, budgetsRes, recentRes] = await Promise.all([
+    const [expensesRes, budgetsRes, recentRes, profileRes] = await Promise.all([
       supabase
         .from("expenses")
         .select("amount,category,vendor,date,is_recurring")
@@ -74,11 +76,19 @@ export async function POST() {
         .eq("user_id", user.id)
         .order("date", { ascending: false })
         .limit(10),
+      supabase
+        .from("profiles")
+        .select("currency")
+        .eq("id", user.id)
+        .single(),
     ]);
 
     const currentMonthExpenses = expensesRes.data ?? [];
     const budgets = budgetsRes.data ?? [];
     const recentExpenses = recentRes.data ?? [];
+    const preferredCurrency = isSupportedCurrency(profileRes.data?.currency)
+      ? profileRes.data.currency
+      : "USD";
 
     // Build a concise financial summary for the AI
     const totalSpent = currentMonthExpenses.reduce(
@@ -106,12 +116,15 @@ export async function POST() {
 
     const prompt = `You are a concise personal finance advisor. Analyze this data and return sharp, scannable insights.
 
-SPENDING: $${totalSpent.toFixed(2)} across ${currentMonthExpenses.length} transactions this month.
+All money values below use ${preferredCurrency}. Use ${preferredCurrency} consistently in every insight.
+Never use "$" unless the currency is USD.
+
+SPENDING: ${formatCurrencyAmount(totalSpent, preferredCurrency)} across ${currentMonthExpenses.length} transactions this month.
 
 BY CATEGORY:
 ${Object.entries(categoryTotals)
   .sort(([, a], [, b]) => (b as number) - (a as number))
-  .map(([cat, total]) => `- ${cat}: $${(total as number).toFixed(2)}`)
+  .map(([cat, total]) => `- ${cat}: ${formatCurrencyAmount(total as number, preferredCurrency)}`)
   .join("\n")}
 
 BUDGETS:
@@ -120,7 +133,7 @@ ${
     ? budgetSummary
         .map(
           (b: { category: string; spent: number; limit: number; percentage: number }) =>
-            `- ${b.category}: $${b.spent.toFixed(2)} / $${b.limit.toFixed(2)} (${b.percentage}%)`
+            `- ${b.category}: ${formatCurrencyAmount(b.spent, preferredCurrency)} / ${formatCurrencyAmount(b.limit, preferredCurrency)} (${b.percentage}%)`
         )
         .join("\n")
     : "No budgets set."
@@ -131,7 +144,7 @@ ${recentExpenses
   .slice(0, 10)
   .map(
     (e: { date: string; vendor: string | null; category: string; amount: number }) =>
-      `- ${e.date}: ${e.vendor ?? "Unknown"} (${e.category}) $${e.amount.toFixed(2)}`
+      `- ${e.date}: ${e.vendor ?? "Unknown"} (${e.category}) ${formatCurrencyAmount(e.amount, preferredCurrency)}`
   )
   .join("\n")}
 
@@ -208,7 +221,10 @@ STRICT RULES for each insight:
             .map((item: Record<string, unknown>) => ({
               type: item.type as InsightItem["type"],
               title: (item.title as string).slice(0, 200),
-              content: (item.content as string).slice(0, 1000),
+              content: localizeCurrencyMentions(
+                (item.content as string).slice(0, 1000),
+                (amount) => formatCurrencyAmount(amount, preferredCurrency)
+              ),
               created_at: new Date().toISOString(),
             }));
 
@@ -275,7 +291,10 @@ STRICT RULES for each insight:
             .map((item: Record<string, unknown>) => ({
               type: item.type as InsightItem["type"],
               title: (item.title as string).slice(0, 200),
-              content: (item.content as string).slice(0, 1000),
+              content: localizeCurrencyMentions(
+                (item.content as string).slice(0, 1000),
+                (amount) => formatCurrencyAmount(amount, preferredCurrency)
+              ),
               created_at: new Date().toISOString(),
             }));
 
@@ -302,7 +321,7 @@ STRICT RULES for each insight:
         user_id: user.id,
         insight_type: insight.type,
         content: `${insight.title}: ${insight.content}`,
-        data: { title: insight.title },
+        data: { title: insight.title, currency: preferredCurrency },
       }));
       await supabase.from("ai_insights").insert(insightsToStore);
     } catch {

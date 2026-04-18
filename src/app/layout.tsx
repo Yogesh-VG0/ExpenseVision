@@ -90,8 +90,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
-      className={`dark ${dmSans.variable} ${jetBrainsMono.variable} h-full antialiased overflow-x-hidden`}
+      className={`${dmSans.variable} ${jetBrainsMono.variable} h-full antialiased overflow-x-hidden`}
     >
       <body className="min-h-full flex flex-col overflow-x-hidden">
         <ThemeInitScript />

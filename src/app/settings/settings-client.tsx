@@ -55,6 +55,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useCurrency } from "@/components/currency-provider";
 import { createClient } from "@/lib/supabase/client";
 import {
   getPushCapabilityState,
@@ -85,6 +86,7 @@ export function SettingsClient({ profile }: SettingsClientProps) {
   const router = useRouter();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
+  const { setCurrency: applyCurrencyPreference } = useCurrency();
 
   // Profile state
   const [fullName, setFullName] = useState(profile.full_name ?? "");
@@ -213,7 +215,10 @@ export function SettingsClient({ profile }: SettingsClientProps) {
   // ────────── Preferences handlers ──────────
 
   async function handleSaveCurrency(value: string) {
+    const previousCurrency = currency;
+
     setCurrency(value);
+    applyCurrencyPreference(value);
     setSavingPrefs(true);
     try {
       const { error } = await supabase
@@ -224,6 +229,9 @@ export function SettingsClient({ profile }: SettingsClientProps) {
       toast.success(`Currency set to ${value}`);
       router.refresh();
     } catch (err: unknown) {
+      setCurrency(previousCurrency);
+      applyCurrencyPreference(previousCurrency);
+
       const message = err instanceof Error ? err.message : "Failed to update currency";
       toast.error(message);
     } finally {
@@ -716,7 +724,7 @@ export function SettingsClient({ profile }: SettingsClientProps) {
                 </div>
               )}
               {pushState === "permission-denied" && (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
+                <div className="flex items-center gap-2 rounded-lg border border-amber-600/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-200">
                   Notification permission was denied. Enable it in your browser settings to use push notifications.
                 </div>
               )}

@@ -85,7 +85,7 @@
   --muted-foreground: hsl(215 16% 47%);
   --accent: hsl(263 70% 50%);
   --accent-foreground: hsl(0 0% 98%);
-  --destructive: hsl(0 84% 60%);
+  --destructive: hsl(0 72% 51%);
   --border: hsl(214 32% 91%);
   --input: hsl(214 32% 91%);
   --ring: hsl(43 96% 56%);
@@ -120,7 +120,7 @@
   --muted-foreground: hsl(0 0% 64%);
   --accent: hsl(263 70% 50%);
   --accent-foreground: hsl(0 0% 98%);
-  --destructive: hsl(0 63% 31%);
+  --destructive: hsl(0 72% 55%);
   --border: hsl(0 0% 16%);
   --input: hsl(0 0% 16%);
   --ring: hsl(43 96% 56%);
@@ -263,6 +263,21 @@
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-layer:focus,
+.recharts-sector:focus,
+.recharts-rectangle:focus,
+.recharts-pie-sector:focus,
+.recharts-bar-rectangle:focus {
+  outline: none !important;
+}
+
+.recharts-tooltip-wrapper:focus-visible,
+.recharts-default-tooltip:focus-visible {
+  outline: none !important;
 }
 
 /* ---- UAE Dirham symbol font — Dirham covers only U+20C3, rest falls through ---- */

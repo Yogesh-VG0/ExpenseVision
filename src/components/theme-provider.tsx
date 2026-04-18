@@ -40,7 +40,8 @@ function getInitialTheme(defaultTheme: Theme): Theme {
   return defaultTheme;
 }
 
-const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t&&["light","dark","system"].indexOf(t)!==-1){var r=t==="system"?window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":t;document.documentElement.classList.remove("light","dark");document.documentElement.classList.add(r)}}catch(e){}})()`;
+// Always set `light` or `dark` on <html> before paint (default matches ThemeProvider).
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");var r;if(t&&["light","dark","system"].indexOf(t)!==-1){r=t==="system"?window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":t}else{r="dark"}document.documentElement.classList.remove("light","dark");document.documentElement.classList.add(r)}catch(e){}})()`;
 
 export function ThemeInitScript() {
   return (

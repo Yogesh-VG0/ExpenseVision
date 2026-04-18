@@ -15,7 +15,6 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
-  Legend,
 } from "recharts";
 import { CATEGORY_COLORS } from "@/lib/constants";
 import { useCurrency } from "@/components/currency-provider";
@@ -49,16 +48,22 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
             </p>
           </div>
         ) : (
-        <div className="h-[300px] w-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-            <PieChart>
+        <div className="space-y-4">
+          <div className="h-[240px] w-full min-w-0 sm:h-[300px]">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={0}
+              initialDimension={{ width: 320, height: 300 }}
+            >
+            <PieChart accessibilityLayer={false}>
               <Pie
                 data={chartData}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={4}
+                innerRadius="56%"
+                outerRadius="84%"
+                paddingAngle={3}
                 dataKey="value"
                 stroke="none"
               >
@@ -78,16 +83,30 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
                   "Spent",
                 ]}
               />
-              <Legend
-                verticalAlign="bottom"
-                iconType="circle"
-                iconSize={8}
-                formatter={(value: string) => (
-                  <span className="text-xs text-muted-foreground">{value}</span>
-                )}
-              />
             </PieChart>
           </ResponsiveContainer>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {chartData.map((entry) => (
+              <div
+                key={entry.name}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: entry.fill }}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate text-sm text-muted-foreground">
+                    {entry.name}
+                  </span>
+                </div>
+                <span className="shrink-0 text-sm font-medium">{format(entry.value)}</span>
+              </div>
+            ))}
+          </div>
         </div>
         )}
       </CardContent>

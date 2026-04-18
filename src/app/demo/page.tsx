@@ -5,7 +5,8 @@ import { useMemo } from "react";
 import { OverviewCards } from "@/components/dashboard/overview-cards";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
-import { getDemoAnalytics, DEMO_EXPENSES } from "@/lib/demo-data";
+import { getDemoAnalytics, getDemoExpenses } from "@/lib/demo-data";
+import { useHydrated } from "@/lib/use-hydrated";
 import type { Expense } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 
@@ -19,8 +20,17 @@ const CategoryBreakdown = dynamic(
 );
 
 export default function DemoDashboardPage() {
-  const analytics = useMemo(() => getDemoAnalytics(), []);
-  const expenses = DEMO_EXPENSES as unknown as Expense[];
+  const hydrated = useHydrated();
+
+  const analytics = useMemo(() => (hydrated ? getDemoAnalytics() : null), [hydrated]);
+  const expenses = useMemo(
+    () => (hydrated ? (getDemoExpenses() as unknown as Expense[]) : []),
+    [hydrated]
+  );
+
+  if (!hydrated || !analytics) {
+    return <div className="min-h-[60vh]" />;
+  }
 
   return (
     <div className="space-y-6">
@@ -31,7 +41,10 @@ export default function DemoDashboardPage() {
             Your financial overview at a glance
           </p>
         </div>
-        <Badge variant="outline" className="text-amber-400 border-amber-400/40 animate-pulse-glow">
+        <Badge
+          variant="outline"
+          className="animate-pulse-glow border-amber-600/45 text-amber-800 dark:border-amber-400/40 dark:text-amber-400"
+        >
           Demo
         </Badge>
       </div>
@@ -40,20 +53,16 @@ export default function DemoDashboardPage() {
         <OverviewCards data={analytics} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-5 animate-fade-up" style={{ animationDelay: "300ms" }}>
-        <div className="lg:col-span-3">
-          <ExpenseChart data={analytics} />
-        </div>
-        <div className="lg:col-span-2">
-          <CategoryBreakdown data={analytics} />
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-5 animate-fade-up" style={{ animationDelay: "450ms" }}>
-        <div className="lg:col-span-3">
+      <div
+        className="grid gap-6 lg:grid-cols-5 lg:items-start animate-fade-up"
+        style={{ animationDelay: "300ms" }}
+      >
+        <div className="space-y-6 lg:col-span-3">
+          <ExpenseChart data={analytics} isDemo />
           <RecentActivity expenses={expenses} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
+          <CategoryBreakdown data={analytics} />
           <BudgetProgress data={analytics} />
         </div>
       </div>

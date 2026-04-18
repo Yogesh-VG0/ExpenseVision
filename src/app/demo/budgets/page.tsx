@@ -35,7 +35,8 @@ import {
 
 import { useCurrency } from "@/components/currency-provider";
 import { CATEGORY_COLORS } from "@/lib/constants";
-import { DEMO_BUDGETS, DEMO_EXPENSES } from "@/lib/demo-data";
+import { getDemoBudgets, getDemoExpenses } from "@/lib/demo-data";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const DEMO_TOAST_TITLE = "Sign up to save changes!";
 const DEMO_TOAST_DESC = "Create a free account to manage your budgets.";
@@ -46,15 +47,18 @@ function showDemoToast() {
 
 export default function DemoBudgetsPage() {
   const { format } = useCurrency();
-  const budgets = DEMO_BUDGETS;
+  const hydrated = useHydrated();
+
+  const budgets = useMemo(() => (hydrated ? getDemoBudgets() : []), [hydrated]);
+  const demoExpenses = useMemo(() => (hydrated ? getDemoExpenses() : []), [hydrated]);
 
   const spending = useMemo(() => {
     const map: Record<string, number> = {};
-    DEMO_EXPENSES.forEach((e) => {
+    demoExpenses.forEach((e) => {
       map[e.category] = (map[e.category] || 0) + e.amount;
     });
     return map;
-  }, []);
+  }, [demoExpenses]);
 
   const totalLimit = budgets.reduce((sum, b) => sum + b.monthly_limit, 0);
   const totalSpent = budgets.reduce(
@@ -70,6 +74,10 @@ export default function DemoBudgetsPage() {
     return "bg-emerald-500";
   }
 
+  if (!hydrated) {
+    return <div className="min-h-[60vh]" />;
+  }
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -77,7 +85,10 @@ export default function DemoBudgetsPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">Budgets</h1>
-            <Badge variant="outline" className="text-amber-400 border-amber-400/40 animate-pulse-glow">
+            <Badge
+            variant="outline"
+            className="animate-pulse-glow border-amber-600/45 text-amber-800 dark:border-amber-400/40 dark:text-amber-400"
+          >
               Demo
             </Badge>
           </div>

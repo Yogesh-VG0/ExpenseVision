@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCurrency } from "@/components/currency-provider";
 import { CATEGORIES } from "@/lib/types";
 import type { Budget } from "@/lib/types";
 
@@ -37,6 +38,7 @@ export function BudgetFormDialog({
   onSubmit,
   existingCategories,
 }: BudgetFormDialogProps) {
+  const { currency } = useCurrency();
   const isEditing = !!budget;
   const [category, setCategory] = useState<string>("");
   const [monthlyLimit, setMonthlyLimit] = useState("");
@@ -150,7 +152,7 @@ export function BudgetFormDialog({
 
             {/* Monthly Limit Input */}
             <div className="space-y-2">
-              <Label>Monthly Limit ($)</Label>
+              <Label>{`Monthly Limit (${currency})`}</Label>
               <Input
                 type="number"
                 step="0.01"

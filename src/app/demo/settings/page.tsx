@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "@/components/theme-provider";
 import { toast } from "sonner";
 import {
@@ -41,6 +41,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useCurrency } from "@/components/currency-provider";
 
 const CURRENCIES = [
   { value: "USD", label: "USD – US Dollar" },
@@ -63,10 +64,18 @@ function showDemoToast() {
 
 export default function DemoSettingsPage() {
   const { theme, setTheme } = useTheme();
+  const {
+    currency: activeCurrency,
+    setCurrency: applyCurrencyPreference,
+  } = useCurrency();
   const [fullName, setFullName] = useState("Demo User");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(activeCurrency);
   const [budgetAlerts, setBudgetAlerts] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState(false);
+
+  useEffect(() => {
+    setCurrency(activeCurrency);
+  }, [activeCurrency]);
 
   return (
     <div className="space-y-6">
@@ -76,7 +85,7 @@ export default function DemoSettingsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
           <Badge
             variant="outline"
-            className="text-amber-400 border-amber-400/40 animate-pulse-glow"
+            className="animate-pulse-glow border-amber-600/45 text-amber-800 dark:border-amber-400/40 dark:text-amber-400"
           >
             Demo
           </Badge>
@@ -208,7 +217,12 @@ export default function DemoSettingsPage() {
               </Select>
             </CardContent>
             <CardFooter>
-              <Button onClick={showDemoToast}>
+              <Button
+                onClick={() => {
+                  applyCurrencyPreference(currency);
+                  showDemoToast();
+                }}
+              >
                 <Check className="mr-2 h-4 w-4" />
                 Save Currency
               </Button>

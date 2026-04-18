@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { useCurrency } from "@/components/currency-provider";
+import { localizeCurrencyMentions } from "@/lib/localize-currency-text";
 import type { Expense } from "@/lib/types";
 
 interface InsightItem {
@@ -54,7 +55,7 @@ const INSIGHT_META: Record<
   },
   budget_alert: {
     icon: AlertTriangle,
-    color: "text-amber-400",
+    color: "text-amber-700 dark:text-amber-400",
     gradient: "from-amber-500/20 to-amber-500/5",
   },
   trend_analysis: {
@@ -342,7 +343,7 @@ export function InsightsClient({
                       </CardHeader>
                       <CardContent className="flex-1 pt-0">
                         <p className="text-sm leading-relaxed text-muted-foreground">
-                          {insight.content}
+                          {localizeCurrencyMentions(insight.content, formatCurrency)}
                         </p>
                       </CardContent>
                     </Card>
@@ -382,7 +383,7 @@ export function InsightsClient({
                             </Badge>
                           </div>
                           <p className="text-sm leading-relaxed text-muted-foreground">
-                            {insight.content}
+                            {localizeCurrencyMentions(insight.content, formatCurrency)}
                           </p>
                         </div>
                       ))}

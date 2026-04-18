@@ -36,7 +36,7 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
 };
 
 const TYPE_STYLES: Record<string, string> = {
-  budget_warning: "text-amber-400",
+  budget_warning: "text-amber-700 dark:text-amber-400",
   budget_exceeded: "text-red-400",
   weekly_summary: "text-blue-400",
   import_complete: "text-emerald-400",

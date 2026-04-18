@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo } from "react";
+import { subDays } from "date-fns";
 import { Camera } from "lucide-react";
 import { OverviewCards } from "@/components/dashboard/overview-cards";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
@@ -55,10 +56,13 @@ function buildAnalytics(
     .sort((a, b) => a.month.localeCompare(b.month));
 
   // By day
+  const lastThirtyDaysKey = subDays(new Date(), 29).toISOString().split("T")[0];
   const dayMap: Record<string, number> = {};
-  expenses.forEach((e) => {
+  allExpenses
+    .filter((expense) => expense.date >= lastThirtyDaysKey)
+    .forEach((e) => {
     dayMap[e.date] = (dayMap[e.date] || 0) + e.amount;
-  });
+    });
   const by_day = Object.entries(dayMap)
     .map(([date, total]) => ({ date, total }))
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -145,20 +149,13 @@ export function DashboardClient({
 
       <OverviewCards data={analytics} />
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3">
+      <div className="grid gap-6 lg:grid-cols-5 lg:items-start">
+        <div className="space-y-6 lg:col-span-3">
           <ExpenseChart data={analytics} />
-        </div>
-        <div className="lg:col-span-2">
-          <CategoryBreakdown data={analytics} />
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3">
           <RecentActivity expenses={expenses} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
+          <CategoryBreakdown data={analytics} />
           <BudgetProgress data={analytics} />
         </div>
       </div>

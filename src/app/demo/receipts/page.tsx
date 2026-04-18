@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Upload,
@@ -33,7 +33,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useCurrency } from "@/components/currency-provider";
 import { CATEGORY_COLORS } from "@/lib/constants";
-import { DEMO_EXPENSES } from "@/lib/demo-data";
+import { getDemoExpenses } from "@/lib/demo-data";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const DEMO_TOAST_TITLE = "Sign up to scan receipts!";
 const DEMO_TOAST_DESC = "Create a free account to use AI receipt scanning.";
@@ -55,16 +56,27 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "Other": Package,
 };
 
-// Simulate some "scanned" receipts from demo data
-const DEMO_RECEIPTS = DEMO_EXPENSES.slice(0, 8).map((e, i) => ({
-  ...e,
-  confidence: [0.95, 0.88, 0.92, 0.97, 0.85, 0.91, 0.94, 0.89][i],
-  scannedAt: new Date(Date.now() - i * 86400000).toLocaleDateString(),
-}));
-
 export default function DemoReceiptsPage() {
   const { format } = useCurrency();
-  const [selectedReceipt, setSelectedReceipt] = useState<(typeof DEMO_RECEIPTS)[0] | null>(null);
+  const hydrated = useHydrated();
+
+  const demoReceipts = useMemo(
+    () =>
+      hydrated
+        ? getDemoExpenses()
+            .slice(0, 8)
+            .map((expense, index) => ({
+              ...expense,
+              confidence: [0.95, 0.88, 0.92, 0.97, 0.85, 0.91, 0.94, 0.89][index],
+            }))
+        : [],
+    [hydrated]
+  );
+  const [selectedReceipt, setSelectedReceipt] = useState<(typeof demoReceipts)[number] | null>(null);
+
+  if (!hydrated) {
+    return <div className="min-h-[60vh]" />;
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -76,7 +88,10 @@ export default function DemoReceiptsPage() {
               <Camera className="mr-2 inline-block h-8 w-8 text-primary" />
               Receipt Scanner
             </h1>
-            <Badge variant="outline" className="text-amber-400 border-amber-400/40 animate-pulse-glow">
+            <Badge
+            variant="outline"
+            className="animate-pulse-glow border-amber-600/45 text-amber-800 dark:border-amber-400/40 dark:text-amber-400"
+          >
               Demo
             </Badge>
           </div>
@@ -171,7 +186,7 @@ export default function DemoReceiptsPage() {
           Recently Scanned Receipts
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {DEMO_RECEIPTS.map((receipt) => {
+          {demoReceipts.map((receipt) => {
             const categoryColor = CATEGORY_COLORS[receipt.category] || "#64748B";
             const CategoryIcon = CATEGORY_ICONS[receipt.category] || FileText;
             return (

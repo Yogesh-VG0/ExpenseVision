@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -255,9 +256,9 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1 sm:max-w-[200px]">
               <Label htmlFor="date-from" className="text-xs text-muted-foreground">From</Label>
-              <Input
+              <DateInput
                 id="date-from"
-                type="date"
+                placeholder="dd/mm/yyyy"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="bg-muted/30 border-border"
@@ -265,9 +266,9 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
             </div>
             <div className="flex-1 space-y-1 sm:max-w-[200px]">
               <Label htmlFor="date-to" className="text-xs text-muted-foreground">To</Label>
-              <Input
+              <DateInput
                 id="date-to"
-                type="date"
+                placeholder="dd/mm/yyyy"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 className="bg-muted/30 border-border"

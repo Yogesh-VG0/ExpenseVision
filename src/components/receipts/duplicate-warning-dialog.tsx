@@ -43,7 +43,7 @@ export function DuplicateWarningDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-amber-500/30 bg-background/95 backdrop-blur-xl sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-amber-400">
+          <DialogTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
             <AlertTriangle className="h-5 w-5" />
             Possible duplicate detected
           </DialogTitle>
@@ -60,8 +60,8 @@ export function DuplicateWarningDialog({
               variant="outline"
               className={
                 confidencePct >= 90
-                  ? "border-red-500/30 text-red-400"
-                  : "border-amber-500/30 text-amber-400"
+                  ? "border-red-600/35 text-red-800 dark:border-red-500/30 dark:text-red-400"
+                  : "border-amber-600/35 text-amber-800 dark:border-amber-500/30 dark:text-amber-400"
               }
             >
               {confidencePct}%

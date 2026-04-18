@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { DateInput } from "@/components/ui/date-input";
+import { useCurrency } from "@/components/currency-provider";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +44,7 @@ export function ExpenseFormDialog({
   expense,
   onSubmit,
 }: ExpenseFormDialogProps) {
+  const { currency } = useCurrency();
   const isEdit = !!expense;
 
   const [amount, setAmount] = useState("");
@@ -117,7 +120,7 @@ export function ExpenseFormDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Amount */}
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount ($)</Label>
+            <Label htmlFor="amount">{`Amount (${currency})`}</Label>
             <Input
               id="amount"
               type="number"
@@ -187,9 +190,9 @@ export function ExpenseFormDialog({
           {/* Date */}
           <div className="space-y-2">
             <Label htmlFor="date">Date</Label>
-            <Input
+            <DateInput
               id="date"
-              type="date"
+              placeholder="dd/mm/yyyy"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="bg-muted/30 border-border"

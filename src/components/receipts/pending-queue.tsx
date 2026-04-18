@@ -31,22 +31,25 @@ const STATUS_CONFIG: Record<
   queued: {
     label: "Waiting",
     icon: Clock,
-    className: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+    className:
+      "border-amber-600/35 bg-amber-500/15 text-amber-900 dark:border-amber-500/30 dark:text-amber-300",
   },
   retrying: {
     label: "Retrying",
     icon: Loader2,
-    className: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+    className:
+      "border-blue-600/35 bg-blue-500/15 text-blue-900 dark:border-blue-500/30 dark:text-blue-300",
   },
   succeeded: {
     label: "Saved",
     icon: CheckCircle,
-    className: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    className:
+      "border-emerald-600/35 bg-emerald-500/15 text-emerald-900 dark:border-emerald-500/30 dark:text-emerald-300",
   },
   failed: {
     label: "Failed",
     icon: XCircle,
-    className: "bg-red-500/15 text-red-300 border-red-500/30",
+    className: "border-red-600/35 bg-red-500/15 text-red-900 dark:border-red-500/30 dark:text-red-300",
   },
 };
 
@@ -99,11 +102,11 @@ export function PendingQueuePanel() {
     typeof navigator !== "undefined" ? navigator.onLine : true;
 
   return (
-    <Card className="border-amber-500/20 bg-amber-500/5 backdrop-blur-sm">
+    <Card className="border-amber-600/25 bg-amber-500/[0.06] backdrop-blur-sm dark:border-amber-500/20 dark:bg-amber-500/5">
       <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/15">
-            <WifiOff className="h-4 w-4 text-amber-300" />
+            <WifiOff className="h-4 w-4 text-amber-800 dark:text-amber-300" />
           </div>
           <CardTitle className="text-base">
             Pending uploads
@@ -129,7 +132,7 @@ export function PendingQueuePanel() {
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
         {!isOnline && (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+          <div className="flex items-center gap-2 rounded-lg border border-amber-600/25 bg-amber-500/10 p-2.5 text-xs text-amber-950 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             You&apos;re offline. Expenses will upload when your connection returns.
           </div>

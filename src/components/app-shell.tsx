@@ -3,10 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +22,6 @@ import {
   Brain,
   Settings,
   LogOut,
-  Menu,
   Sparkles,
   ChevronDown,
   Bell,
@@ -43,7 +41,6 @@ const navItems = [
   { href: "/budgets", label: "Budgets", icon: Wallet },
   { href: "/receipts", label: "Receipts", icon: Camera },
   { href: "/insights", label: "AI Insights", icon: Brain },
-  { href: "/imports", label: "Import", icon: FileUp },
 ];
 
 interface AppShellProps {
@@ -55,13 +52,16 @@ interface AppShellProps {
 export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mobileNavState, setMobileNavState] = useState({
+    hidden: false,
+    pathname,
+  });
   const { isInstalled, install } = usePWAInstall();
+  const mainRef = useRef<HTMLElement | null>(null);
   const isImmersiveCapture = !isDemo && pathname === "/receipts/capture";
-  const visibleNavItems = isDemo
-    ? navItems.filter((item) => item.href !== "/imports")
-    : navItems;
+  const visibleNavItems = navItems;
+  const mobileNavHidden = mobileNavState.pathname === pathname ? mobileNavState.hidden : false;
 
   const fetchUnreadCount = useCallback(async () => {
     if (isDemo) return;
@@ -81,6 +81,49 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
     const interval = setInterval(() => void fetchUnreadCount(), 60_000);
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
+
+  useEffect(() => {
+    if (isImmersiveCapture) return;
+
+    const scrollContainer = mainRef.current;
+    if (!scrollContainer) return;
+
+    let lastScrollTop = scrollContainer.scrollTop;
+
+    const handleScroll = () => {
+      const currentScrollTop = scrollContainer.scrollTop;
+
+      if (currentScrollTop < 24) {
+        setMobileNavState((current) => {
+          if (!current.hidden && current.pathname === pathname) {
+            return current;
+          }
+
+          return { hidden: false, pathname };
+        });
+        lastScrollTop = currentScrollTop;
+        return;
+      }
+
+      if (Math.abs(currentScrollTop - lastScrollTop) < 10) {
+        return;
+      }
+
+      setMobileNavState((current) => {
+        const nextHidden = currentScrollTop > lastScrollTop;
+
+        if (current.hidden === nextHidden && current.pathname === pathname) {
+          return current;
+        }
+
+        return { hidden: nextHidden, pathname };
+      });
+      lastScrollTop = currentScrollTop;
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, [isImmersiveCapture, pathname]);
 
   const displayName = user?.full_name || user?.email?.split("@")[0] || "User";
   const initials = displayName
@@ -102,7 +145,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
     <div
       className={cn(
         "flex h-full flex-col",
-        !mobile && "w-64 border-r border-border bg-card/50 backdrop-blur-xl"
+        !mobile && "w-64 overflow-hidden border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground supports-backdrop-filter:backdrop-blur-xl"
       )}
     >
       {/* Logo */}
@@ -131,7 +174,6 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
             <Link
               key={item.href}
               href={href}
-              onClick={() => mobile && setMobileOpen(false)}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive
@@ -154,7 +196,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
       <div className="space-y-1 border-t border-border p-3">
         {!isInstalled && (
           <button
-            onClick={() => { if (mobile) setMobileOpen(false); install(); }}
+            onClick={() => install()}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
           >
             <Download className="h-5 w-5" />
@@ -163,7 +205,6 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
         )}
         <Link
           href={isDemo ? "/demo/settings" : "/settings"}
-          onClick={() => mobile && setMobileOpen(false)}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
             pathname === "/settings" || pathname === "/demo/settings"
@@ -178,6 +219,87 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
     </div>
   );
 
+  const renderProfileMenu = () => {
+    if (isDemo) {
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button variant="ghost" className="flex items-center gap-2 px-1.5 sm:px-2" />
+            }
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                DU
+              </AvatarFallback>
+            </Avatar>
+            <span className="hidden text-sm font-medium sm:block">Demo</span>
+            <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={8} className="w-56 border-border/80 bg-popover/95 shadow-2xl">
+            <DropdownMenuItem render={<Link href="/demo/settings" />} className="cursor-pointer py-2 px-3">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
+            {!isInstalled && (
+              <DropdownMenuItem onClick={install} className="cursor-pointer py-2 px-3">
+                <Download className="mr-2 h-4 w-4" />
+                Install App
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem render={<Link href="/signup" />} className="cursor-pointer py-2 px-3">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Sign Up Free
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    }
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="ghost" className="flex items-center gap-1.5 px-1.5 sm:gap-2 sm:px-2" />
+          }
+        >
+          <Avatar className="h-8 w-8">
+            {user?.avatar_url && <AvatarImage src={user.avatar_url} alt={displayName} />}
+            <AvatarFallback className="bg-primary/10 text-[10px] text-primary sm:text-xs">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <span className="hidden max-w-[120px] truncate text-sm font-medium sm:block">
+            {displayName}
+          </span>
+          <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={8} className="w-56 border-border/80 bg-popover/95 shadow-2xl">
+          <DropdownMenuItem render={<Link href="/settings" />} className="cursor-pointer py-2 px-3">
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/imports" />} className="cursor-pointer py-2 px-3">
+            <FileUp className="mr-2 h-4 w-4" />
+            Import
+          </DropdownMenuItem>
+          {!isInstalled && (
+            <DropdownMenuItem onClick={install} className="cursor-pointer py-2 px-3">
+              <Download className="mr-2 h-4 w-4" />
+              Install App
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer py-2 px-3" variant="destructive">
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
   return (
     <div className={cn("flex h-screen overflow-hidden bg-background", isImmersiveCapture && "h-dvh") }>
       {!isImmersiveCapture && (
@@ -186,19 +308,20 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
         </aside>
       )}
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {!isImmersiveCapture && (
-          <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/50 px-3 backdrop-blur-xl sm:h-16 sm:px-4 md:px-6">
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-3 supports-backdrop-filter:backdrop-blur-xl sm:h-16 sm:px-4 md:px-6">
             <div className="flex items-center gap-2">
-              <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-                <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" />}>
-                  <Menu className="h-5 w-5" />
-                </SheetTrigger>
-                <SheetContent side="left" className="w-72 p-0">
-                  <SheetTitle className="sr-only">Navigation</SheetTitle>
-                  {renderSidebar(true)}
-                </SheetContent>
-              </Sheet>
+              <Link href="/" className="flex items-center gap-2 md:hidden">
+                <Image
+                  src="/minimal_optimized_for_favicon.png"
+                  alt="ExpenseVision logo"
+                  width={34}
+                  height={34}
+                  className="rounded-md"
+                />
+                <span className="sr-only">ExpenseVision</span>
+              </Link>
 
               {isDemo && (
                 <div className="hidden items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent sm:flex">
@@ -233,53 +356,80 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
               <ThemeToggle />
 
               {isDemo ? (
-                <Button size="sm" render={<Link href="/signup" />}>
+                <Button size="sm" render={<Link href="/signup" />} className="hidden sm:inline-flex">
                   <span className="hidden sm:inline">Sign Up Free</span>
                   <span className="sm:hidden">Sign Up</span>
                 </Button>
               ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button variant="ghost" className="flex items-center gap-1.5 px-1.5 sm:gap-2 sm:px-2" />}>
-                    <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
-                      {user?.avatar_url && (
-                        <AvatarImage src={user.avatar_url} alt={displayName} />
-                      )}
-                      <AvatarFallback className="bg-primary/10 text-[10px] text-primary sm:text-xs">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="hidden text-sm font-medium sm:block max-w-[120px] truncate">
-                      {displayName}
-                    </span>
-                    <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 border border-border bg-popover shadow-xl">
-                  <DropdownMenuItem render={<Link href="/settings" />} className="cursor-pointer py-2 px-3">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer py-2 px-3">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                renderProfileMenu()
+              )}
+              {isDemo && <div className="sm:hidden">{renderProfileMenu()}</div>}
             </div>
           </header>
         )}
 
         <main
+          ref={mainRef}
           className={cn(
             "flex-1 overflow-y-auto",
-            isImmersiveCapture ? "p-0" : "animate-fade-up p-4 md:p-6"
+            isImmersiveCapture ? "p-0" : "animate-fade-up p-4 pb-24 md:p-6 md:pb-6"
           )}
           style={isImmersiveCapture ? undefined : { animationDelay: "100ms" }}
         >
           <CurrencyProvider>{children}</CurrencyProvider>
         </main>
       </div>
+
+      {!isImmersiveCapture && (
+        <nav
+          className={cn(
+            "fixed inset-x-3 bottom-3 z-40 transition-all duration-300 ease-out md:hidden",
+            mobileNavHidden
+              ? "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
+              : "translate-y-0 opacity-100"
+          )}
+          aria-label="Primary navigation"
+        >
+          <div
+            className="isolate translate-z-0 transform-gpu rounded-2xl border border-border/80 bg-background/90 px-2 pt-2 shadow-2xl supports-backdrop-filter:backdrop-blur-xl"
+            style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <div className="grid grid-cols-5 gap-1">
+              {visibleNavItems.map((item) => {
+                const demoHref = `/demo${item.href === "/dashboard" ? "" : item.href}`;
+                const href = isDemo ? demoHref : item.href;
+                const isActive = isDemo
+                  ? pathname === demoHref || (demoHref !== "/demo" && pathname.startsWith(demoHref + "/"))
+                  : pathname === item.href || pathname.startsWith(item.href + "/");
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={href}
+                    scroll={false}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={(e) => {
+                      // Same-route clicks were causing mobile repaint / focus flashes (white streak).
+                      if (isActive) e.preventDefault();
+                    }}
+                    className={cn(
+                      "flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[11px] font-medium transition-colors",
+                      "outline-none [-webkit-tap-highlight-color:transparent]",
+                      "focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-0",
+                      isActive
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    )}
+                  >
+                    <item.icon className="h-4.5 w-4.5 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
