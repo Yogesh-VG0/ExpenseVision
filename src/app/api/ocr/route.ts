@@ -558,9 +558,12 @@ function receiptIncludesAdjustments(rawText: string) {
 }
 
 function applyCategoryAndNotesInference(result: OCRResult): OCRResult {
+  const inferred = suggestCategory(result.vendor?.trim() ?? "", result.raw_text ?? "");
   let category = result.category;
   if (!category) {
-    category = suggestCategory(result.vendor?.trim() ?? "", result.raw_text ?? "").category;
+    category = inferred.category;
+  } else if (category === "Other" && inferred.category !== "Other") {
+    category = inferred.category;
   }
 
   let description = result.description;

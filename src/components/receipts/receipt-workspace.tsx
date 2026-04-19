@@ -414,10 +414,14 @@ export function ReceiptWorkspace({
     const rawText = result?.raw_text ?? "";
     const suggested = suggestCategory(vendor, rawText);
     const categoryFromOcr = result?.category;
+    const ocrValid =
+      categoryFromOcr && CATEGORIES.some((c) => c.name === categoryFromOcr);
     const category =
-      categoryFromOcr && CATEGORIES.some((c) => c.name === categoryFromOcr)
-        ? categoryFromOcr
-        : suggested.category;
+      !ocrValid
+        ? suggested.category
+        : categoryFromOcr === "Other" && suggested.category !== "Other"
+          ? suggested.category
+          : categoryFromOcr;
     const description =
       result?.description?.trim() ||
       (vendor ? `Receipt from ${vendor}` : "");
