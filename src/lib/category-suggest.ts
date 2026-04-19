@@ -49,9 +49,13 @@ const MERCHANT_CATEGORY_MAP: Record<string, Category> = {
   exxonmobil: "Transportation",
   "parking": "Transportation",
 
-  // Shopping
+  // Shopping (retail, supermarkets, general merchandise)
   amazon: "Shopping",
   target: "Shopping",
+  supermarket: "Shopping",
+  hypermarket: "Shopping",
+  "super store": "Shopping",
+  "department store": "Shopping",
   "best buy": "Shopping",
   "home depot": "Shopping",
   "lowe's": "Shopping",
@@ -115,6 +119,10 @@ const MERCHANT_CATEGORY_MAP: Record<string, Category> = {
 /** OCR text keywords mapped to categories. */
 const TEXT_KEYWORDS: Array<{ keywords: string[]; category: Category }> = [
   { keywords: ["restaurant", "dine", "menu", "appetizer", "tip", "waiter", "server"], category: "Food & Dining" },
+  {
+    keywords: ["supermarket", "hypermarket", "minimart", "department store", "shopping mall", "retail"],
+    category: "Shopping",
+  },
   { keywords: ["grocery", "produce", "dairy", "bakery", "deli", "meat"], category: "Groceries" },
   { keywords: ["gas station", "fuel", "unleaded", "diesel", "gallons", "pump"], category: "Transportation" },
   { keywords: ["pharmacy", "prescription", "rx", "copay", "clinic", "doctor", "dentist"], category: "Healthcare" },

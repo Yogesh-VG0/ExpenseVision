@@ -86,6 +86,12 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
     const scrollContainer = mainRef.current;
     if (!scrollContainer) return;
 
+    // Auto-hiding the tab bar while reviewing a tall receipt + save bar fights the thumb zone on phones.
+    if (isImmersiveCapture) {
+      setMobileNavState({ hidden: false, pathname });
+      return;
+    }
+
     let lastScrollTop = scrollContainer.scrollTop;
 
     const handleScroll = () => {
@@ -121,7 +127,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
 
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [pathname]);
+  }, [pathname, isImmersiveCapture]);
 
   const displayName = user?.full_name || user?.email?.split("@")[0] || "User";
   const initials = displayName
@@ -192,6 +198,20 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
 
       {/* Settings + Install */}
       <div className="space-y-1 border-t border-border p-3">
+        {!isDemo && (
+          <Link
+            href="/imports"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname === "/imports"
+                ? "bg-primary/15 text-primary border border-primary/20"
+                : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            )}
+          >
+            <FileUp className="h-5 w-5" />
+            Import
+          </Link>
+        )}
         {!isInstalled && (
           <button
             onClick={() => install()}
@@ -278,7 +298,10 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
             <Settings className="mr-2 h-4 w-4" />
             Settings
           </DropdownMenuItem>
-          <DropdownMenuItem render={<Link href="/imports" />} className="cursor-pointer py-2 px-3">
+          <DropdownMenuItem
+            render={<Link href="/imports" />}
+            className="cursor-pointer py-2 px-3 md:hidden"
+          >
             <FileUp className="mr-2 h-4 w-4" />
             Import
           </DropdownMenuItem>
@@ -371,7 +394,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
           className={cn(
             "flex-1 overflow-y-auto",
             isImmersiveCapture
-              ? "p-0 pb-24 md:pb-0"
+              ? "p-0 pb-4 md:pb-0"
               : "animate-fade-up p-4 pb-24 md:p-6 md:pb-6"
           )}
           style={isImmersiveCapture ? undefined : { animationDelay: "100ms" }}
@@ -383,9 +406,9 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
       <nav
           className={cn(
             "fixed inset-x-3 bottom-3 z-40 transition-all duration-300 ease-out md:hidden",
-            mobileNavHidden
-              ? "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
-              : "translate-y-0 opacity-100"
+            isImmersiveCapture || !mobileNavHidden
+              ? "translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
           )}
           aria-label="Primary navigation"
         >

@@ -25,6 +25,11 @@ describe("suggestCategory", () => {
     expect(suggestCategory("Best Buy").category).toBe("Shopping");
   });
 
+  it("suggests Shopping for supermarkets and similar merchants", () => {
+    expect(suggestCategory("HILAL AL MADINA SUPERMARKET BR1").category).toBe("Shopping");
+    expect(suggestCategory("City Hypermarket").category).toBe("Shopping");
+  });
+
   it("suggests category from OCR text keywords", () => {
     const result = suggestCategory("Unknown Store", "restaurant tip appetizer menu");
     expect(result.category).toBe("Food & Dining");

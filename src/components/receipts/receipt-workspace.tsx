@@ -63,6 +63,7 @@ import { buildReceiptHistoryItem, validateReceiptFile } from "@/lib/receipts";
 import { trackEvent } from "@/lib/telemetry";
 import { expenseSchema } from "@/lib/validations";
 import { CATEGORIES } from "@/lib/types";
+import { suggestCategory } from "@/lib/category-suggest";
 import { cn } from "@/lib/utils";
 import {
   enqueuePendingUpload,
@@ -409,11 +410,23 @@ export function ReceiptWorkspace({
   );
 
   const hydrateForm = useCallback((result: ReceiptProcessingResult | null) => {
+    const vendor = result?.vendor ?? "";
+    const rawText = result?.raw_text ?? "";
+    const suggested = suggestCategory(vendor, rawText);
+    const categoryFromOcr = result?.category;
+    const category =
+      categoryFromOcr && CATEGORIES.some((c) => c.name === categoryFromOcr)
+        ? categoryFromOcr
+        : suggested.category;
+    const description =
+      result?.description?.trim() ||
+      (vendor ? `Receipt from ${vendor}` : "");
+
     setFormValues({
       amount: result?.amount != null ? String(result.amount) : "",
-      vendor: result?.vendor ?? "",
-      category: result?.category ?? "Other",
-      description: result?.description ?? "",
+      vendor,
+      category,
+      description,
       date: result?.date ?? today(),
     });
   }, []);
@@ -980,7 +993,7 @@ export function ReceiptWorkspace({
     <div
       className={cn(
         isCaptureMode
-          ? "mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pb-32 sm:px-6 lg:px-8"
+          ? "mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pb-44 sm:px-6 sm:pb-40 lg:px-8"
           : "space-y-6 pb-28 md:pb-10"
       )}
       style={isCaptureMode ? { paddingTop: "calc(env(safe-area-inset-top) + 1rem)" } : undefined}
@@ -1715,8 +1728,16 @@ export function ReceiptWorkspace({
 
       {canSave && !processing && (
         <div
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 shadow-[0_-12px_30px_rgba(15,23,42,0.18)] backdrop-blur md:sticky md:bottom-4 md:rounded-2xl md:border md:shadow-none"
-          style={isCaptureMode ? { paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" } : undefined}
+          className={cn(
+            "inset-x-0 border-border bg-background/95 p-4 shadow-[0_-12px_30px_rgba(15,23,42,0.18)] backdrop-blur",
+            "fixed z-50 md:sticky md:z-10",
+            "bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] border-t md:bottom-auto md:rounded-2xl md:border md:shadow-none"
+          )}
+          style={
+            isCaptureMode
+              ? { paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }
+              : { paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }
+          }
         >
           <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground sm:max-w-xl">

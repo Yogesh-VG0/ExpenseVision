@@ -3,6 +3,7 @@ import { getAppUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import { persistReceiptRecord } from "@/lib/receipt-records";
 import { CATEGORIES } from "@/lib/types";
+import { suggestCategory } from "@/lib/category-suggest";
 import { aiRateLimit } from "@/lib/redis";
 import {
   buildReceiptStoragePath,
@@ -556,6 +557,24 @@ function receiptIncludesAdjustments(rawText: string) {
   return /(offer|discount|coupon|deduction|promotion|savings)/i.test(rawText);
 }
 
+function applyCategoryAndNotesInference(result: OCRResult): OCRResult {
+  let category = result.category;
+  if (!category) {
+    category = suggestCategory(result.vendor?.trim() ?? "", result.raw_text ?? "").category;
+  }
+
+  let description = result.description;
+  if (!description?.trim() && result.vendor?.trim()) {
+    description = `Receipt from ${result.vendor.trim()}`;
+  }
+
+  return {
+    ...result,
+    category,
+    description,
+  };
+}
+
 function refineOCRResult(result: OCRResult) {
   const warnings: string[] = [];
   let confidence = result.confidence;
@@ -1021,7 +1040,7 @@ export async function POST(request: NextRequest) {
     }
 
     const refinedOCR = refineOCRResult(ocrResult);
-    ocrResult = refinedOCR.result;
+    ocrResult = applyCategoryAndNotesInference(refinedOCR.result);
 
     if (receiptStoragePath) {
       try {
