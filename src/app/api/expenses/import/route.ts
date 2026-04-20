@@ -11,6 +11,7 @@ import { importBatchRateLimit } from "@/lib/redis";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import type { Category } from "@/lib/types";
+import { MAX_EXPENSE_AMOUNT } from "@/lib/constants";
 
 const CHUNK_MAX_ROWS = 50;
 const VALID_CATEGORIES = new Set<Category>([
@@ -28,7 +29,7 @@ const VALID_CATEGORIES = new Set<Category>([
 
 const importRowSchema = z.object({
   source_row: z.number().int().positive().optional(),
-  amount: z.number().positive(),
+  amount: z.number().positive().max(MAX_EXPENSE_AMOUNT),
   vendor: z.string().max(200).optional().nullable(),
   category: z.string().max(50).optional().nullable(),
   description: z.string().max(500).optional().default(""),

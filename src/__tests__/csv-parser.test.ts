@@ -60,6 +60,7 @@ describe("mapAndValidateRows", () => {
     description: "Description",
     category: "Category",
     vendor: "Vendor",
+    transactionType: "",
   };
 
   it("validates valid rows", () => {
@@ -85,6 +86,17 @@ describe("mapAndValidateRows", () => {
 
     expect(validated[2].errors).toHaveLength(0);
     expect(validated[2].mapped!.amount).toBe(45.00);
+  });
+
+  it("treats negative bank debits as positive expense amounts", () => {
+    const csv = `Date,Amount,Description,Category,Vendor
+2024-01-15,-6.75,"Coffee","Food & Drink","Starbucks"`;
+    const { rows } = parseCSVString(csv);
+    const validated = mapAndValidateRows(rows, mapping);
+
+    expect(validated[0].errors).toHaveLength(0);
+    expect(validated[0].mapped!.amount).toBe(6.75);
+    expect(validated[0].mapped!.category).toBe("Food & Dining");
   });
 
   it("marks invalid rows with errors", () => {
