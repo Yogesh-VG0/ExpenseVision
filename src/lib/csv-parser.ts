@@ -5,7 +5,6 @@
  * validates each row, and returns both valid and errored rows for the wizard.
  */
 
-import type { Category } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
 import { MAX_EXPENSE_AMOUNT } from "@/lib/constants";
 import { normalizeImportCategoryLabel } from "@/lib/category-suggest";

@@ -61,7 +61,12 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
   const mainRef = useRef<HTMLElement | null>(null);
   const isImmersiveCapture = !isDemo && pathname === "/receipts/capture";
   const visibleNavItems = navItems;
-  const mobileNavHidden = mobileNavState.pathname === pathname ? mobileNavState.hidden : false;
+  const mobileNavHidden =
+    isImmersiveCapture
+      ? false
+      : mobileNavState.pathname === pathname
+        ? mobileNavState.hidden
+        : false;
 
   const fetchUnreadCount = useCallback(async () => {
     if (isDemo) return;
@@ -84,14 +89,9 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
 
   useEffect(() => {
     const scrollContainer = mainRef.current;
-    if (!scrollContainer) return;
+    if (!scrollContainer || isImmersiveCapture) return;
 
     // Auto-hiding the tab bar while reviewing a tall receipt + save bar fights the thumb zone on phones.
-    if (isImmersiveCapture) {
-      setMobileNavState({ hidden: false, pathname });
-      return;
-    }
-
     let lastScrollTop = scrollContainer.scrollTop;
 
     const handleScroll = () => {
@@ -406,7 +406,7 @@ export function AppShell({ children, user, isDemo = false }: AppShellProps) {
       <nav
           className={cn(
             "fixed inset-x-3 bottom-3 z-40 transition-all duration-300 ease-out md:hidden",
-            isImmersiveCapture || !mobileNavHidden
+            !mobileNavHidden
               ? "translate-y-0 opacity-100"
               : "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
           )}

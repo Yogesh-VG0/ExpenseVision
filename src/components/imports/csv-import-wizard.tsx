@@ -5,7 +5,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  FileText,
   Loader2,
   Upload,
   AlertTriangle,
