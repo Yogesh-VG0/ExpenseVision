@@ -1,7 +1,7 @@
 # ExpenseVision — Technical Documentation
 
 > **Single source of truth** for the entire ExpenseVision codebase.
-> Last updated to match the repo (OCR pipeline, receipt review UI, CSP, env vars), April 2026.
+> Last updated to match the repo (OCR pipeline, auto-categorization, CSV/Excel import, CSP, env vars), April 2026.
 
 ---
 
@@ -499,19 +499,27 @@ Receipt file handling:
 
 ### `src/lib/csv-parser.ts`
 
-CSV import utilities:
+CSV / spreadsheet import utilities:
 
-- **`parseCSVString(text)`**: Handles quoted fields, newlines in quotes, various line endings
-- **`autoDetectColumns(headers)`**: Maps common header names to expense fields using a keyword dictionary (e.g., "amt"/"total"/"price" → amount, "merchant"/"payee"/"vendor" → vendor)
-- **`parseAmount(value)`**: Strips currency symbols/commas, handles parenthetical negatives
-- **`parseDate(value)`**: Tries multiple formats: ISO, US (`MM/DD/YYYY`), European (`DD/MM/YYYY`), written dates
+- **`parseCSVString(text)`**: Handles quoted fields, newlines in quotes, UTF-8 BOM, various line endings
+- **`autoDetectMapping(headers)`**: Maps common header names to expense fields (date, amount, description, optional vendor/category/transaction type)
+- **`parseAmount(value)`**: Strips currency symbols/commas, treats **negative bank debits** as positive expense amounts
+- **`parseDate(value)`**: Tries ISO, US (`MM/DD/YYYY`), European (`DD.MM.YYYY`), and native `Date` parsing
+- **`mapAndValidateRows()`**: Validates each row; category column values are normalized via **`normalizeImportCategoryLabel()`** from `category-suggest.ts`
+- **`validateMappedRowEdit()`**: Re-validates a row after inline edits in the import preview UI
 
 ### `src/lib/category-suggest.ts`
 
-`suggestCategory(vendor?, description?)`:
-- Dictionary-based lookup mapping merchant names and keywords to categories
-- Examples: "uber" → Transportation, "netflix" → Entertainment, "walgreens" → Healthcare
-- Returns `null` if no match found
+Shared **auto-categorization** for receipt OCR, CSV/Excel import, and API fallbacks:
+
+- **`normalizeImportCategoryLabel(raw)`** — Maps bank/spreadsheet labels (e.g. “Food & Drink”, “Gas & Fuel”, “Auto & Transport”) onto the **10 canonical** category names. Input is length-capped and lowercased; used by the client-side parser and **`POST /api/expenses/import`** when the CSV category is missing or non-canonical.
+- **`suggestCategory(merchant, ocrText?)`** — Returns `{ category, confidence, source }`:
+  - **Merchant match**: Substring dictionary sorted by **longest key first** (avoids e.g. `uber` swallowing `uber eats`).
+  - **OCR / memo text**: **Weighted keyword scores** summed per category; best category wins if the score meets a minimum threshold (covers gas station receipts, pharmacies, etc., when the merchant name is generic).
+  - **Fallback**: `"Other"`.
+- **Security**: Merchant and OCR text are **truncated** before matching (bounded CPU/memory on untrusted strings).
+
+See [Section 11](#11-receipt-ingestion-and-ocr-lifecycle) (post-OCR inference) and [Section 17](#17-csv-import-system) (import column resolution).
 
 ### `src/lib/merchant-normalize.ts`
 
@@ -917,6 +925,15 @@ If **none** of the three credential groups is configured, the route returns **50
 - **Dates** — `coerceDate` accepts `YYYY-MM-DD`, ISO date-times, `MM/DD/YYYY`, `DD/MM/YYYY`, and several written formats.
 - **Categories** — `sanitizeCategory` maps model output onto the **10** app categories; unknown values become `null`.
 
+### Auto-categorization after OCR
+
+After structured OCR, `applyCategoryAndNotesInference()` in `ocr/route.ts`:
+
+1. If the model returns no category, **`Other`**, or an invalid value, **`suggestCategory(vendor, raw_text)`** fills a canonical category (merchant substring match, then weighted keywords in `raw_text`).
+2. If **description** is empty but **vendor** is present, description defaults to `Receipt from {vendor}`.
+
+The review UI (`ReceiptWorkspace`) applies the same `suggestCategory` logic when hydrating the form so client and server stay aligned. Users can always override the category before saving.
+
 ### `ReceiptProcessingResult` (client contract)
 
 Key fields used by `ReceiptWorkspace`: `status` (`success` \| `partial` \| `error`), `upload_status`, `ocr_status`, `receipt_path`, `amount`, `vendor`, `date`, `category`, `description`, `line_items`, `confidence`, `raw_text`, optional **`warning`** and **`error`** strings, and **`recovery_actions`** (`retry_ocr`, `retry_upload`, `save_manually`).
@@ -1043,6 +1060,8 @@ Ten fixed categories (see `CATEGORIES` in `src/lib/types.ts`): Food & Dining, Tr
 
 Colors come from `CATEGORY_COLORS` in `constants.ts` (hex) and from each `CATEGORIES` entry’s `color` field where used in UI.
 
+**Automatic suggestions** use `src/lib/category-suggest.ts`: **receipt OCR** and **CSV/Excel import** (`normalizeImportCategoryLabel` for bank column labels + `suggestCategory` for vendor/description). Suggestions are **defaults**; the user selects the final category on save unless they accept the default.
+
 ---
 
 ## 14. Budget Management Flow
@@ -1168,56 +1187,41 @@ Notifications stored in `notifications` table with `type`, `title`, `message`, `
 
 ## 17. CSV Import System
 
-### Accepted Format
+### Accepted formats
 
-- Standard CSV files with a header row
-- Flexible column naming (auto-detected from common patterns)
-- Supported delimiters: comma (primary, others not explicitly handled)
+- **CSV** (`.csv`) — comma-separated; first row = headers; UTF-8 with BOM supported
+- **Excel** (`.xlsx`, `.xls`) — first worksheet only; parsed with SheetJS (`xlsx`); row/cell limits apply (see `spreadsheet-import.ts`)
+- **Google Sheets** — use **File → Download →** CSV or Microsoft Excel (no direct URL import)
 
-### Import Flow
+File size limits: **5 MB** CSV, **10 MB** Excel; **2,000** rows max per import (client-enforced).
 
-**Step 1: File Selection**
-- User selects a `.csv` file via file picker or drag-and-drop
-- File read as text on client side
+### Import flow
 
-**Step 2: Column Mapping**
-- `autoDetectColumns()` analyzes header row
-- Maps common names like "Amount"/"Total"/"Price" → amount, "Date"/"Transaction Date" → date, "Merchant"/"Payee"/"Vendor" → vendor, "Category"/"Type" → category, "Description"/"Notes"/"Memo" → notes
-- User can manually adjust mappings via dropdown selectors
-- Required mappings: amount and date at minimum
+**Step 1: File selection** — User picks CSV or Excel; binary Excel files are read with `FileReader.readAsArrayBuffer`.
 
-**Step 3: Preview and Validation**
-- Rows parsed using mapped columns
-- `parseAmount()` handles currency symbols, commas, parenthetical negatives
-- `parseDate()` tries ISO, US, European, and written date formats
-- Each row validated against `importRowSchema` (Zod)
-- Invalid rows highlighted with specific error messages
-- User can see which rows will be imported vs skipped
+**Step 2: Column mapping** — `autoDetectMapping(headers)` suggests columns for date, amount, description, optional vendor, category, and optional Debit/Credit type. The UI explains each field in plain language. Optional **“Skip credit rows”** ignores rows whose type column looks like a credit/deposit when that column is mapped.
 
-**Step 4: Confirmation and Import**
-- User reviews summary (total rows, valid rows, skipped rows, duplicate warnings)
-- Submit triggers `POST /api/expenses/import`
-- Server processes rows in batches of 50
-- For each row:
-  - `detectDuplicate()` checks against recent expenses (last 30 days)
-  - `suggestCategory()` attempts to infer category from vendor/notes if not mapped
-  - `createExpenseRecord()` inserts with idempotency key derived from row content
-  - `checkBudgetAlerts()` fires for each affected category
-- Response includes count of created, skipped, and errored rows
+**Step 3: Preview and edit** — `mapAndValidateRows()` runs (`parseAmount` treats **negative amounts** as positive expenses). Category strings from the file are normalized with **`normalizeImportCategoryLabel()`** so labels like “Food & Drink” map to **Food & Dining**. Users can **edit** date, amount, vendor, category, and description before import.
 
-### Duplicate Detection
+**Step 4: Import** — `POST /api/expenses/import` processes up to **50 rows per request** in a loop; rate-limited per user.
 
-The scoring algorithm in `detectDuplicate()`:
-- Compares candidate against existing expenses from last 30 days
-- Score components: amount match (40pts), vendor similarity (30pts), date proximity (30pts)
-- Threshold: 70+ points = likely duplicate
-- Duplicates are flagged in the preview step with warnings but user can choose to import anyway
+Per row on the server:
 
-### Error Reporting
+1. **`resolveCategory()`** — If the client sent an exact canonical category (and not `"Other"`), it is kept. Otherwise **`normalizeImportCategoryLabel(category)`**; if still `"Other"`, **`suggestCategory(vendor, description)`** infers from payee + memo.
+2. **`detectDuplicate()`** against recently loaded expenses (date window around the batch).
+3. **`createExpenseRecord()`** with `idempotency_key` and Zod-validated amounts (`MAX_EXPENSE_AMOUNT` cap).
+4. **`checkBudgetAlerts()`** for touched categories.
 
-- Client-side: Invalid rows shown in red in the preview table with error descriptions
-- Server-side: Each row's result tracked (created/duplicate/error)
-- Final response: `{ created: N, duplicates: N, errors: N, details: [...] }`
+Response shape: `{ total, succeeded, failed, errors[] }` with per-row `source_row` for failures.
+
+### Duplicate detection
+
+`detectDuplicate()` scores candidates vs **recent** expenses (see `import/route.ts` for the date window). Components: amount match, vendor/description similarity, date proximity. High scores block import with a clear error so users can fix duplicates manually.
+
+### Error reporting
+
+- **Client**: Rows with validation errors listed; editable preview reduces fix-and-retry cycles.
+- **Server**: Failed rows include reason (duplicate, validation, DB error).
 
 ---
 
@@ -1673,9 +1677,10 @@ manifest-src 'self';
 
 - All user input validated with Zod schemas before processing
 - HTML tags stripped from vendor names and text fields via regex in Zod transforms
-- Amount bounded by `MAX_EXPENSE_AMOUNT` in `constants.ts` (see `expenseSchema`)
+- Amount bounded by `MAX_EXPENSE_AMOUNT` in `constants.ts` (see `expenseSchema` and `importRowSchema`)
 - Date string must be `YYYY-MM-DD` (additional “not future” rules may apply in UI components)
-- Category values must be one of the **10** `VALID_CATEGORIES` in `validations.ts`
+- Category values must be one of the **10** `VALID_CATEGORIES` in `validations.ts`; import paths may send **non-canonical** strings that are normalized server-side or rejected after inference
+- **Auto-categorization** (`suggestCategory`, `normalizeImportCategoryLabel`) only **reads** user-provided merchant/OCR/description strings; inputs are **truncated** before dictionary matching to avoid DoS via megabyte-long strings
 
 ### Open Redirect Prevention
 

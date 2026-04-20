@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { suggestCategory } from "@/lib/category-suggest";
+import { normalizeImportCategoryLabel, suggestCategory } from "@/lib/category-suggest";
 
 describe("suggestCategory", () => {
   it("suggests Food & Dining for known restaurant merchants", () => {
@@ -25,9 +25,22 @@ describe("suggestCategory", () => {
     expect(suggestCategory("Best Buy").category).toBe("Shopping");
   });
 
-  it("suggests Shopping for supermarkets and similar merchants", () => {
-    expect(suggestCategory("HILAL AL MADINA SUPERMARKET BR1").category).toBe("Shopping");
-    expect(suggestCategory("City Hypermarket").category).toBe("Shopping");
+  it("suggests Groceries for supermarkets and hypermarkets", () => {
+    expect(suggestCategory("HILAL AL MADINA SUPERMARKET BR1").category).toBe("Groceries");
+    expect(suggestCategory("City Hypermarket").category).toBe("Groceries");
+  });
+
+  it("normalizes bank export category labels", () => {
+    expect(normalizeImportCategoryLabel("Food & Drink")).toBe("Food & Dining");
+    expect(normalizeImportCategoryLabel("Gas & Fuel")).toBe("Transportation");
+    expect(normalizeImportCategoryLabel("Auto & Transport")).toBe("Transportation");
+    expect(normalizeImportCategoryLabel("Food & Dining")).toBe("Food & Dining");
+  });
+
+  it("uses weighted OCR keywords when merchant is unknown", () => {
+    const gas = suggestCategory("Unknown", "Fuel pump 10 gallons unleaded");
+    expect(gas.category).toBe("Transportation");
+    expect(gas.source).toBe("text_keyword");
   });
 
   it("suggests category from OCR text keywords", () => {

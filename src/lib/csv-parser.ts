@@ -8,6 +8,7 @@
 import type { Category } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
 import { MAX_EXPENSE_AMOUNT } from "@/lib/constants";
+import { normalizeImportCategoryLabel } from "@/lib/category-suggest";
 
 export interface ColumnMapping {
   date: string;
@@ -129,56 +130,6 @@ function parseAmount(value: string): number | null {
   return Math.round(abs * 100) / 100;
 }
 
-/** Maps labels from banks / spreadsheets to ExpenseVision categories. */
-const CATEGORY_ALIASES: Record<string, Category> = {
-  "food & drink": "Food & Dining",
-  "food and drink": "Food & Dining",
-  "food/drink": "Food & Dining",
-  "food": "Food & Dining",
-  "restaurants": "Food & Dining",
-  "dining": "Food & Dining",
-  "groceries": "Groceries",
-  "grocery": "Groceries",
-  "gas & fuel": "Transportation",
-  "gas": "Transportation",
-  "fuel": "Transportation",
-  "auto": "Transportation",
-  "transport": "Transportation",
-  "income": "Other",
-  "salary": "Other",
-  "transfer": "Other",
-  "entertainment": "Entertainment",
-  "utilities": "Bills & Utilities",
-  "bills": "Bills & Utilities",
-  "health": "Healthcare",
-  "medical": "Healthcare",
-  "education": "Education",
-  "travel": "Travel",
-  "shopping": "Shopping",
-  "subscriptions": "Entertainment",
-};
-
-function normalizeCategory(value: string): Category {
-  if (!value.trim()) return "Other";
-  const lower = value.toLowerCase().trim();
-
-  const alias = CATEGORY_ALIASES[lower];
-  if (alias) return alias;
-
-  const exact = CATEGORIES.find((c) => c.name.toLowerCase() === lower);
-  if (exact) return exact.name;
-
-  const partial = CATEGORIES.find(
-    (c) => lower.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(lower)
-  );
-  if (partial) return partial.name;
-
-  const fuzzyAlias = Object.entries(CATEGORY_ALIASES).find(
-    ([key]) => lower.includes(key) || key.includes(lower)
-  );
-  return fuzzyAlias?.[1] ?? "Other";
-}
-
 function isCreditTransaction(typeStr: string): boolean {
   const t = typeStr.toLowerCase();
   if (!t) return false;
@@ -246,7 +197,7 @@ export function mapAndValidateRows(
       errors.push("Amount too large");
     }
 
-    const category = normalizeCategory(categoryStr);
+    const category = normalizeImportCategoryLabel(categoryStr);
 
     if (errors.length > 0) {
       return { rowIndex, raw, mapped: null, errors };

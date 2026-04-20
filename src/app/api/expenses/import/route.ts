@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkBudgetAlerts } from "@/lib/budget-alerts";
-import { suggestCategory } from "@/lib/category-suggest";
+import { normalizeImportCategoryLabel, suggestCategory } from "@/lib/category-suggest";
 import { detectDuplicate } from "@/lib/duplicate-detection";
 import {
   createExpenseRecord,
@@ -52,6 +52,11 @@ function resolveCategory(row: z.infer<typeof importRowSchema>): Category {
 
   if (VALID_CATEGORIES.has(trimmedCategory as Category) && trimmedCategory !== "Other") {
     return trimmedCategory as Category;
+  }
+
+  const fromColumn = normalizeImportCategoryLabel(trimmedCategory);
+  if (fromColumn !== "Other") {
+    return fromColumn;
   }
 
   return suggestCategory(row.vendor?.trim() ?? "", row.description.trim()).category;
