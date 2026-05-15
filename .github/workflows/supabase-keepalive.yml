@@ -1,0 +1,67 @@
+# Pings the ExpenseVision Supabase project every 6 hours so the free tier
+# does not auto-pause after 7 days of inactivity. Runs on GitHub infrastructure
+# (independent of Render spin-down).
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   NEXT_PUBLIC_SUPABASE_URL
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY
+#
+# Apply supabase/migrations/009_project_heartbeat.sql on the project first.
+
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate secrets
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL}" ]; then
+            echo "::error::Missing repository secret NEXT_PUBLIC_SUPABASE_URL"
+            exit 1
+          fi
+          if [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "::error::Missing repository secret NEXT_PUBLIC_SUPABASE_ANON_KEY"
+            exit 1
+          fi
+
+      - name: Ping Supabase Auth health
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/auth-health.json -w "%{http_code}" \
+            "${SUPABASE_URL}/auth/v1/health")
+          echo "Auth health HTTP ${code}"
+          cat /tmp/auth-health.json
+          test "${code}" = "200"
+
+      - name: Ping Supabase REST heartbeat
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/heartbeat.json -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/project_heartbeat?select=last_ping_at&id=eq.singleton" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          echo "REST heartbeat HTTP ${code}"
+          cat /tmp/heartbeat.json
+          test "${code}" = "200"
+          rows=$(jq 'length' /tmp/heartbeat.json)
+          test "${rows}" -ge 1

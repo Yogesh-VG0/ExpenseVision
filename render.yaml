@@ -48,3 +48,18 @@ services:
         sync: false
       - key: CRON_SECRET
         sync: false
+
+  - type: cron
+    name: expensevision-supabase-keepalive
+    runtime: node
+    schedule: "0 */6 * * *"
+    buildCommand: echo "no build needed"
+    startCommand: >-
+      curl -sf -X POST
+      "$NEXT_PUBLIC_APP_URL/api/cron/keepalive"
+      -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false

@@ -242,6 +242,17 @@ Deployed on **Render free tier** via the included `render.yaml` Blueprint:
 
 **Free-tier notes**: Render spins down after 15 min of inactivity. First request after spin-down takes ~30–60s. Supabase free tier auto-pauses after 1 week of inactivity.
 
+**Supabase keep-alive** (prevents auto-pause on inactive free projects):
+
+1. Apply `supabase/migrations/009_project_heartbeat.sql` in the Supabase SQL Editor (or `supabase db push`).
+2. In GitHub → **Settings → Secrets and variables → Actions**, add:
+   - `NEXT_PUBLIC_SUPABASE_URL` — your project URL (`https://hlcjdtlyiakzmfpgoivg.supabase.co`)
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — anon/public key from Supabase → Project Settings → API
+3. Push to `main`. The workflow `.github/workflows/supabase-keepalive.yml` pings Auth + REST every **6 hours** (independent of Render).
+4. On Render, deploy the updated `render.yaml` so the `expensevision-supabase-keepalive` cron also runs every 6 hours as a backup.
+
+Manual test: **Actions → Supabase keep-alive → Run workflow**. Both steps should pass with HTTP 200.
+
 ---
 
 ## PWA / Mobile
