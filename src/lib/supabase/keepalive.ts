@@ -40,6 +40,10 @@ export async function pingSupabaseProject(options?: {
     const key = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", anonKey);
 
     const authRes = await fetch(`${supabaseUrl}/auth/v1/health`, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
       cache: "no-store",
     });
 

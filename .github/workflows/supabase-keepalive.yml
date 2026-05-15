@@ -42,10 +42,13 @@ jobs:
       - name: Ping Supabase Auth health
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
           set -euo pipefail
           code=$(curl -sS -o /tmp/auth-health.json -w "%{http_code}" \
-            "${SUPABASE_URL}/auth/v1/health")
+            "${SUPABASE_URL}/auth/v1/health" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
           echo "Auth health HTTP ${code}"
           cat /tmp/auth-health.json
           test "${code}" = "200"
