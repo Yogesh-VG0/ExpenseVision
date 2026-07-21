@@ -248,8 +248,10 @@ Deployed on **Render free tier** via the included `render.yaml` Blueprint:
 2. In GitHub → **Settings → Secrets and variables → Actions**, add:
    - `NEXT_PUBLIC_SUPABASE_URL` — your project URL (`https://hlcjdtlyiakzmfpgoivg.supabase.co`)
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — anon/public key from Supabase → Project Settings → API
+   - `WORKFLOW_IMMORTALITY_TOKEN` — a fine-grained GitHub PAT with **Actions: read and write** access to this repository
 3. Push to `main`. The workflow `.github/workflows/supabase-keepalive.yml` pings Auth + REST every **6 hours** (independent of Render).
-4. On Render, deploy the updated `render.yaml` so the `expensevision-supabase-keepalive` cron also runs every 6 hours as a backup.
+4. The monthly `.github/workflows/workflow-immortality.yml` workflow prevents GitHub from disabling scheduled runs after 60 days of repository inactivity.
+5. On Render, deploy the updated `render.yaml` so the `expensevision-supabase-keepalive` cron also runs every 6 hours as a backup.
 
 Manual test: **Actions → Supabase keep-alive → Run workflow**. Both steps should pass with HTTP 200.
 

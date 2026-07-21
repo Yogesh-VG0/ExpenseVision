@@ -1,0 +1,20 @@
+name: GitHub Workflow Immortality
+
+on:
+  schedule:
+    # Monthly runs are frequent enough to stay below GitHub's 60-day limit.
+    - cron: "20 0 1 * *"
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    name: Keep scheduled workflows enabled
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Reset scheduled workflow inactivity
+        uses: PhrozenByte/gh-workflow-immortality@39378c27dcacbc17e6fbf83057d1fc40c574000d # v1
+        with:
+          secret: ${{ secrets.WORKFLOW_IMMORTALITY_TOKEN }}
+          repos: ${{ github.repository }}
